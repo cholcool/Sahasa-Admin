@@ -1,0 +1,39 @@
+.navbar {
+  background: var(--sahasa-sidebar);
+  border: 0;
+}
+
+.navLink {
+  color: #fff;
+  border-radius: var(--mantine-radius-md);
+
+  &[data-active] {
+    background: var(--sahasa-sidebar-active);
+    color: #fff;
+  }
+
+  @mixin hover {
+    background: var(--sahasa-sidebar-active);
+  }
+}
+
+.bottomNav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 100%;
+}
+
+.bottomItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--mantine-color-dimmed);
+  text-decoration: none;
+
+  &[data-status='active'] {
+    color: var(--mantine-primary-color-filled);
+  }
+}

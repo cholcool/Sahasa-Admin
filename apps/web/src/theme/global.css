@@ -1,0 +1,12 @@
+/* พื้นหลังหน้าและการ์ดตาม prototype */
+:root[data-mantine-color-scheme='light'] {
+  --mantine-color-body: #faf6f0;
+  --sahasa-sidebar: #ab0202;
+  --sahasa-sidebar-active: #7d0000;
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  --mantine-color-body: #17110f;
+  --sahasa-sidebar: #6e0b0b;
+  --sahasa-sidebar-active: #4a0505;
+}
