@@ -1,0 +1,870 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sahasa UI Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: same shell as the Figma file — red sidebar with expandable submenus + white top bar on desktop;
+   red app bar + submenu chips + bottom nav + bottom-sheet modals on mobile (container query, so "จำลองมือถือ" works too). */
+:root{
+  --red:#ab0202;--red-dark:#7d0000;--red-soft:#fbeaea;--gold:#d9a520;--gold-soft:#fff4d6;--yellow:#ffe100;
+  --page:#faf6f0;--card:#ffffff;--muted:#f3ece3;--border:#e8ddd0;--text:#2a1a16;--text2:#6e5f58;--on:#ffffff;
+  --green:#1e8e4e;--green-soft:#e3f4ea;--blue:#1f6fb8;--blue-soft:#e3effa;--amber:#b26b00;--amber-soft:#fff0d4;--grey:#6e5f58;--grey-soft:#eee8e1;
+  --sb:#ab0202;--sb-active:#7d0000;--scrim:rgba(42,26,22,.5);--shadow:0 12px 32px rgba(42,26,22,.18);--paper:#ffffff;--ink:#1d1d1d;
+  --font:'IBM Plex Sans Thai',"Noto Sans Thai",Tahoma,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --red:#e0403a;--red-dark:#5a0707;--red-soft:#3a1716;--gold:#d9a520;--gold-soft:#372c12;--yellow:#ffe14d;
+  --page:#17110f;--card:#221a17;--muted:#2c221e;--border:#3b2f2a;--text:#f3ebe6;--text2:#b8a89f;
+  --green:#4cc27f;--green-soft:#15301f;--blue:#64a9ee;--blue-soft:#14283d;--amber:#e3a03a;--amber-soft:#3a2a10;--grey:#b8a89f;--grey-soft:#332a26;
+  --sb:#6e0b0b;--sb-active:#4a0505;--scrim:rgba(0,0,0,.6);--shadow:0 12px 32px rgba(0,0,0,.5);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --red:#e0403a;--red-dark:#5a0707;--red-soft:#3a1716;--gold:#d9a520;--gold-soft:#372c12;--yellow:#ffe14d;
+  --page:#17110f;--card:#221a17;--muted:#2c221e;--border:#3b2f2a;--text:#f3ebe6;--text2:#b8a89f;
+  --green:#4cc27f;--green-soft:#15301f;--blue:#64a9ee;--blue-soft:#14283d;--amber:#e3a03a;--amber-soft:#3a2a10;--grey:#b8a89f;--grey-soft:#332a26;
+  --sb:#6e0b0b;--sb-active:#4a0505;--scrim:rgba(0,0,0,.6);--shadow:0 12px 32px rgba(0,0,0,.5);color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--page);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:20px;font-weight:600}
+h2{font-size:16px;font-weight:600}
+h3{font-size:14px;font-weight:600}
+p{margin:0}
+.muted{color:var(--text2)} .sm{font-size:12px} .num{font-variant-numeric:tabular-nums}
+.ic{flex:none;display:block}
+
+/* prototype bar (not part of the product UI) */
+.proto{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--muted);border-bottom:1px solid var(--border);font-size:13px}
+.proto b{font-weight:600}
+.proto .sp{flex:1}
+.proto .pbtn{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:4px 12px}
+.proto .pbtn.on{background:var(--text);color:var(--page);border-color:var(--text)}
+
+/* device frame */
+.device{container-type:inline-size;position:relative}
+body.force .device{width:390px;max-width:100%;height:812px;margin:20px auto;border:10px solid var(--text);border-radius:36px;overflow:hidden;transform:translateZ(0)}
+body.force .app{height:100%;overflow:auto;min-height:0}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+
+/* sidebar */
+.sidebar{background:var(--sb);color:var(--on);position:sticky;top:0;height:100vh;overflow:auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px}
+.logo{border:1px solid rgba(255,255,255,.85);border-radius:8px;text-align:center;padding:6px 0 8px;line-height:1.2}
+.logo b{display:block;font-size:30px;font-weight:700}
+.logo span{font-size:16px;font-weight:600}
+.nav{display:flex;flex-direction:column;gap:4px}
+.ni{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:8px;border:0;background:none;color:var(--on);text-align:left;width:100%}
+.ni:hover{background:rgba(255,255,255,.08)}
+.ni.on{font-weight:600}
+.ni.on.solo{background:var(--sb-active)}
+.ni.on .ic:first-child{color:var(--yellow)}
+.ni .lbl{flex:1}
+.ni .tag{font-size:10px;background:rgba(255,255,255,.18);border-radius:8px;padding:0 6px}
+.subs{display:flex;flex-direction:column;gap:2px;padding:2px 0 6px 32px}
+.si{display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:8px;border:0;background:none;color:var(--on);font-size:13px;text-align:left}
+.si i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7;flex:none}
+.si:hover{background:rgba(255,255,255,.08)}
+.si.on{background:var(--sb-active);color:var(--yellow);font-weight:600}
+.si.on i{opacity:1}
+.sb-foot{margin-top:auto}
+
+/* main */
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:64px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 32px;position:sticky;top:0;z-index:5}
+.crumb{display:flex;align-items:center;gap:8px;font-size:20px;flex:1;min-width:0}
+.crumb .m{color:var(--text2)} .crumb b{font-weight:600}
+.who{display:flex;align-items:center;gap:14px}
+.bell{position:relative;background:none;border:0;padding:2px}
+.bell::after{content:"";position:absolute;top:1px;right:1px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--gold-soft);color:var(--amber);display:grid;place-items:center;font-weight:600}
+.appbar,.subtabs,.bnav{display:none}
+.content{padding-block:28px 40px;padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px;flex:1;min-width:0}
+
+/* building blocks */
+.page-head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.page-head > div:first-child{flex:1;min-width:220px}
+.page-head p{margin-top:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:8px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.btn.sm{height:32px;padding:0 12px;font-size:13px}
+.btn.pri{background:var(--red);color:#fff}
+.btn.sec{background:var(--card);border-color:var(--border)}
+.btn.gold{background:var(--gold);color:#2a1a16}
+.btn.ghost{background:none;color:var(--red);padding:0 6px}
+.btn.dang{background:var(--red-soft);color:var(--red)}
+.btn:hover{filter:brightness(.97)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.card-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-h h2{flex:1}
+.flat{background:var(--page);border-radius:10px;padding:12px 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat-l{display:flex;align-items:center;gap:8px;color:var(--text2);font-size:13px}
+.stat-v{font-size:28px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;background:var(--grey)}
+.dot.green{background:var(--green)}.dot.blue{background:var(--blue)}.dot.amber{background:var(--amber)}.dot.red{background:var(--red)}.dot.gold{background:var(--gold)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 10px;border-radius:12px;white-space:nowrap;background:var(--grey-soft);color:var(--grey)}
+.badge.green{background:var(--green-soft);color:var(--green)}.badge.blue{background:var(--blue-soft);color:var(--blue)}.badge.amber{background:var(--amber-soft);color:var(--amber)}.badge.red{background:var(--red-soft);color:var(--red)}.badge.gold{background:var(--gold-soft);color:var(--amber)}
+.badge.draft{background:none;border:1px dashed var(--amber);color:var(--amber)}
+.banner{display:flex;align-items:center;gap:12px;border-radius:12px;padding:12px 18px;font-weight:500;flex-wrap:wrap}
+.banner .t{flex:1;min-width:200px}
+.banner.gold{background:var(--gold-soft)}.banner.gold .ic{color:var(--amber)}
+.banner.amber{background:var(--amber-soft)}.banner.amber .ic{color:var(--amber)}
+.banner.red{background:var(--red-soft)}.banner.red .ic{color:var(--red)}
+.banner.blue{background:var(--blue-soft)}.banner.blue .ic{color:var(--blue)}
+.banner.green{background:var(--green-soft)}.banner.green .ic{color:var(--green)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.cols.side{grid-template-columns:minmax(0,1fr) 360px}
+.cols.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+.row{display:flex;align-items:center;gap:12px;min-width:0}
+.row.wrap{flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.kv{display:flex;justify-content:space-between;gap:12px}
+.kv > span:first-child{color:var(--text2);font-size:13px}
+.kv > span:last-child{font-weight:500;text-align:right}
+hr{border:0;border-top:1px solid var(--border);margin:0;width:100%}
+
+/* form */
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fl{font-size:13px;color:var(--text2)}
+.req{color:var(--red);font-weight:400}
+.inp{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text2)}
+.inp input,.inp select{border:0;background:none;outline:none;flex:1;min-width:0;height:100%;color:var(--text)}
+.inp select{appearance:none;cursor:pointer}
+.inp:focus-within{border-color:var(--red)}
+.inp.dis{background:var(--muted)}
+.inp em{font-style:normal;font-size:13px}
+.inp.err{border-color:var(--red)}
+textarea.ta{border:1px solid var(--border);border-radius:8px;background:var(--card);padding:10px 12px;min-height:76px;resize:vertical;width:100%}
+.hint{font-size:12px;color:var(--text2)}
+.fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px}
+.fgrid .full{grid-column:1/-1}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--border);background:var(--card);font-size:13px;white-space:nowrap}
+.chip.on{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.cb{width:18px;height:18px;accent-color:var(--red);margin:0;flex:none;cursor:pointer}
+.radio{display:flex;align-items:center;gap:8px;cursor:pointer}
+.radio input{width:18px;height:18px;accent-color:var(--red);margin:0}
+.sw{width:36px;height:20px;border-radius:10px;border:0;background:var(--grey-soft);position:relative;flex:none;padding:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.sw.on{background:var(--red)}
+.sw.on::after{left:18px}
+.drop{border:1.5px dashed var(--border);border-radius:12px;padding:28px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;background:var(--page)}
+.drop .ic{color:var(--text2)}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.thumb{width:72px;height:72px;border-radius:8px;background:var(--muted);display:grid;place-items:center;color:var(--text2)}
+.thumb.add{background:none;border:1.5px dashed var(--border)}
+
+/* tabs */
+.tabs{display:flex;gap:4px 22px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.tab{border:0;background:none;padding:10px 2px;border-bottom:2px solid transparent;white-space:nowrap;color:var(--text2)}
+.tab.on{color:var(--red);border-color:var(--red);font-weight:600}
+.cnt{font-size:11px;background:var(--muted);border-radius:8px;padding:0 6px;margin-left:4px;color:var(--text2);font-weight:500}
+.tab.on .cnt{background:var(--red-soft);color:var(--red)}
+
+/* tables */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+table{width:100%;border-collapse:collapse}
+th{background:var(--muted);font-size:12px;color:var(--text2);font-weight:500;text-align:left;padding:11px 14px;white-space:nowrap}
+td{padding:11px 14px;border-top:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+td.wr{white-space:normal;min-width:200px}
+th.r,td.r{text-align:right;font-variant-numeric:tabular-nums}
+th.c,td.c{text-align:center}
+tr.hl td{background:var(--amber-soft)}
+tr.bad td{background:var(--red-soft)}
+tr.tot td{font-weight:600;background:var(--page)}
+.ord{color:var(--red);font-weight:600}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13px}
+.mlist{display:none;flex-direction:column;gap:10px}
+.mcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.mcard.hl{background:var(--amber-soft)} .mcard.bad{background:var(--red-soft)}
+.mtop{display:flex;align-items:flex-start;gap:10px}
+.mtop .mt{flex:1;font-weight:600;min-width:0}
+.mact{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.bulk{display:flex;align-items:center;gap:12px;background:var(--gold-soft);border-radius:10px;padding:10px 14px;flex-wrap:wrap}
+.bulk .sp{flex:1}
+.bar{height:8px;border-radius:4px;background:var(--muted);overflow:hidden;min-width:60px}
+.bar > i{display:block;height:100%;background:var(--red);border-radius:4px}
+.bar.green > i{background:var(--green)}.bar.amber > i{background:var(--amber)}
+
+/* chart */
+.chart{width:100%;height:auto;display:block}
+.chart .g{stroke:var(--border)}
+.chart .lb{fill:var(--text2);font-size:11px;font-family:var(--font)}
+.chart .b{fill:var(--red)}
+.chart .b.last{fill:var(--gold)}
+
+/* conn cards */
+.ccard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.ccard.add{border-style:dashed;align-items:center;justify-content:center;color:var(--red);font-weight:600;min-height:180px;background:none}
+.plat{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-weight:700;color:#fff;flex:none}
+.grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+
+/* paper previews */
+.paper{background:var(--paper);color:var(--ink);border:1px solid var(--border);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:22px;font-size:12px;display:flex;flex-direction:column;gap:10px}
+.paper table td,.paper table th{border-top:1px dashed #bbb;background:none;color:var(--ink);padding:5px 6px;font-size:11px}
+.paper .mono{font-size:11px}
+.paper.inv{aspect-ratio:9/11;max-width:100%}
+.ptitle{text-align:center;font-weight:700;font-size:14px}
+
+/* role matrix */
+.mx th:not(:first-child),.mx td:not(:first-child){text-align:center}
+.mx tr.grp td{background:var(--page);font-weight:600;font-size:12px;color:var(--text2)}
+.mx td small{display:block;color:var(--text2);font-size:11px}
+
+/* notifications */
+.nitem{display:flex;gap:12px;padding:14px 4px;border-top:1px solid var(--border)}
+.nitem:first-child{border-top:0}
+.nitem .ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none}
+.nitem.unread .nt::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;vertical-align:middle}
+
+/* map */
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.mapcard .mh{display:flex;align-items:center;gap:12px}
+.mapcard .mno{width:36px;height:36px;border-radius:10px;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+.subrow{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:var(--page);border:0;text-align:left;width:100%}
+.subrow:hover{background:var(--muted)}
+.subrow .sr1{display:flex;align-items:center;gap:8px;font-weight:600}
+.subrow .sr1 .grow{color:var(--text)}
+.mchips{display:flex;flex-wrap:wrap;gap:6px}
+.mchip{font-size:11px;border:1px solid var(--border);border-radius:8px;padding:0 6px;color:var(--text2);background:var(--card)}
+
+/* modal */
+.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
+.mbox{background:var(--card);border-radius:16px;width:min(var(--w,560px),100%);max-height:calc(100% - 32px);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.mhd{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--border)}
+.mhd h2{flex:1;font-size:18px}
+.xbtn{border:0;background:none;padding:4px;color:var(--text2)}
+.mbd{padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:16px}
+.mft{display:flex;gap:12px;justify-content:flex-end;padding:14px 24px;border-top:1px solid var(--border);flex-wrap:wrap}
+.handle{display:none}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--page);padding:10px 18px;border-radius:10px;z-index:60;display:flex;gap:8px;align-items:center;font-weight:500;box-shadow:var(--shadow)}
+.drawer{position:fixed;inset:0;background:var(--scrim);z-index:55;display:flex}
+.drawer .dbox{width:min(300px,85%);background:var(--sb);color:var(--on);height:100%;overflow:auto;padding:20px 14px;display:flex;flex-direction:column;gap:18px}
+
+/* stats as links */
+.stat-go{font:inherit;color:inherit;text-align:left;cursor:pointer}
+.stat-go:hover{border-color:var(--red)}
+.btn.full{width:100%}
+.linkb{border:0;background:none;padding:0;font:inherit;color:var(--red);font-weight:600;cursor:pointer}
+.alrt{display:flex;gap:12px;align-items:center;border:0;border-radius:10px;padding:12px 14px;text-align:left;width:100%;color:var(--text)}
+.alrt.red{background:var(--red-soft)}.alrt.red .ic:first-child{color:var(--red)}
+.alrt.amber{background:var(--amber-soft)}.alrt.amber .ic:first-child{color:var(--amber)}
+.alrt.blue{background:var(--blue-soft)}.alrt.blue .ic:first-child{color:var(--blue)}
+.alrt.gold{background:var(--gold-soft)}.alrt.gold .ic:first-child{color:var(--amber)}
+.alrt:hover{filter:brightness(.98)}
+/* stepper */
+.steps{display:flex;align-items:flex-start;overflow-x:auto}
+.step{display:flex;flex-direction:column;align-items:center;gap:6px;width:96px;flex:none;text-align:center;font-size:12px;color:var(--text2)}
+.sc{width:28px;height:28px;border-radius:50%;background:var(--muted);display:grid;place-items:center;font-weight:600}
+.step.cur{color:var(--text);font-weight:600}.step.cur .sc{background:var(--red);color:#fff}
+.step.done .sc{background:var(--green);color:#fff}
+.sline{flex:1;height:2px;background:var(--border);margin-top:13px;min-width:12px}
+.sline.on{background:var(--green)}
+/* qty + pick */
+.qty{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+.qty button{width:32px;height:32px;border:0;background:none;font-size:16px}
+.qty b{min-width:30px;text-align:center;font-variant-numeric:tabular-nums}
+.pick{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);border-radius:10px;cursor:pointer;background:var(--card)}
+.pick input{accent-color:var(--red);margin:3px 0 0;width:18px;height:18px;flex:none}
+.pick:has(input:checked){border-color:var(--red);background:var(--red-soft)}
+.dashed{border:1.5px dashed var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.circ{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;flex:none}
+/* auth */
+.auth{display:grid;grid-template-columns:minmax(0,43%) minmax(0,1fr);min-height:100vh}
+body.force .auth{height:100%;overflow:auto;min-height:0}
+.brand{background:var(--sb);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center}
+.brand .logo{padding:10px 44px}
+.brand .logo b{font-size:46px}.brand .logo span{font-size:22px}
+.authf{display:flex;align-items:center;justify-content:center;padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.acard{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;width:min(440px,100%);display:flex;flex-direction:column;gap:18px}
+.acard .inp{height:44px}
+
+/* ===== mobile (container) ===== */
+.mob{display:none!important}
+@container (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar,.topbar{display:none}
+  .appbar{display:flex;align-items:center;gap:12px;height:56px;background:var(--sb);color:var(--on);padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));position:sticky;top:0;z-index:6}
+  .appbar h1{flex:1;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .appbar button{background:none;border:0;color:var(--on);padding:2px}
+  .subtabs{display:flex;gap:8px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:56px;z-index:5}
+  .subtabs .chip{border:0;background:var(--muted)}
+  .subtabs .chip.on{background:var(--red)}
+  .bnav{display:flex;position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--border);padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px));z-index:6}
+  .bnav button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--text2)}
+  .bnav button.on{color:var(--red);font-weight:600}
+  .content{padding:16px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));gap:14px}
+  .desk{display:none!important}
+  .mob{display:flex!important}
+  .mlist{display:flex}
+  .tw.mt{display:none}
+  .page-head > .actions{width:100%}
+  .page-head > .actions .btn{flex:1}
+  .stats{grid-template-columns:1fr 1fr;gap:10px}
+  .stat{padding:12px}
+  .stat-v{font-size:22px}
+  .cols,.cols.side,.cols.three{grid-template-columns:minmax(0,1fr)}
+  .fgrid{grid-template-columns:minmax(0,1fr)}
+  .card{padding:16px}
+  .modal{padding:0;align-items:flex-end}
+  .mbox{width:100%;border-radius:20px 20px 0 0;max-height:90%}
+  .handle{display:block;width:40px;height:4px;border-radius:2px;background:var(--border);margin:10px auto 0}
+  .mhd{padding:8px 16px 12px;border-bottom:0}
+  .mhd h2{font-size:17px}
+  .mbd{padding:4px 16px 16px}
+  .mft{padding:12px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+  .mft .btn{flex:1}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  h1{font-size:18px}
+  .auth{grid-template-columns:minmax(0,1fr);align-content:start}
+  .brand{padding:36px 16px;min-height:230px}
+  .brand .logo{padding:8px 32px}.brand .logo b{font-size:38px}
+  .authf{padding-block:20px 32px;align-items:flex-start}
+  .acard{padding:24px}
+  .step{width:64px;font-size:10px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="proto" role="region" aria-label="ตัวควบคุมต้นแบบ">
+  <b>ต้นแบบ UI สหัสา · Module 1–10</b>
+  <span class="muted">คลิกเมนู ปุ่ม และ Modal ได้ · ข้อมูลเป็นตัวอย่าง</span>
+  <span class="sp"></span>
+  <button class="pbtn" type="button" data-go="map">แผนผังเมนู</button>
+  <button class="pbtn" type="button" data-go="auth-login">เริ่มจากหน้า Login</button>
+  <button class="pbtn" id="vw-real" type="button">ขนาดหน้าจอจริง</button>
+  <button class="pbtn" id="vw-mob" type="button">จำลองมือถือ 390px</button>
+</div>
+
+<div class="device" id="device">
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="เมนูหลัก"></aside>
+    <div class="main">
+      <header class="topbar"><div class="crumb" id="crumb"></div>
+        <div class="who"><button class="bell" data-go="users-notif" aria-label="การแจ้งเตือน" type="button"></button><div class="avatar" id="av">A</div><span style="font-weight:500" id="uname">Admin</span></div>
+      </header>
+      <header class="appbar"><button id="menuBtn" type="button" aria-label="เปิดเมนู"></button><h1 id="abTitle"></h1><button data-go="users-notif" type="button" aria-label="การแจ้งเตือน" id="abBell"></button></header>
+      <nav class="subtabs" id="subtabs" aria-label="เมนูย่อย"></nav>
+      <main class="content" id="content"></main>
+      <nav class="bnav" id="bnav" aria-label="เมนูด้านล่าง"></nav>
+    </div>
+  </div>
+  <div class="auth" id="auth" hidden></div>
+</div>
+
+<script>
+/* ---------- icons ---------- */
+const IC={mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',cl:'<path d="m15 18-6-6 6-6"/>',home:'<path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',factory:'<path d="M2 21V9l6 4V9l6 4V4h6v17zM6 17h2M11 17h2M16 17h2"/>',receipt:'<path d="M5 2v20l2.3-1.5L9.7 22l2.3-1.5 2.3 1.5 2.4-1.5L19 22V2l-2.3 1.5L14.3 2 12 3.5 9.7 2 7.3 3.5z"/><path d="M9 8h6M9 12h6M9 16h4"/>',chart:'<path d="M3 3v18h18M7 16v-5M12 16V8M17 16v-9"/>',plug:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',db:'<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',boxes:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',plus:'<path d="M12 5v14M5 12h14"/>',x:'<path d="M18 6 6 18M6 6l12 12"/>',check:'<path d="M20 6 9 17l-5-5"/>',cd:'<path d="m6 9 6 6 6-6"/>',cr:'<path d="m9 18 6-6-6-6"/>',cu:'<path d="m18 15-6-6-6 6"/>',upload:'<path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',download:'<path d="M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',printer:'<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/>',alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',trash:'<path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2"/>',eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',refresh:'<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/>',file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',truck:'<path d="M1 3h15v13H1zM16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',link:'<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',map:'<path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/>',filter:'<path d="M22 3H2l8 9.5V19l4 2v-8.5z"/>',box:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2"/>',shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'};
+const I=(n,s=18)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]||''}</svg>`;
+
+/* ---------- menu structure ---------- */
+const MODS=[
+ {id:'map',n:'แผนผังเมนู',i:'map'},
+ {id:'auth',n:'Login',i:'lock',no:1,hideNav:1,ml:'หน้าจอ',subs:[['login','เข้าสู่ระบบ'],['forgot','ลืมรหัสผ่าน'],['sent','ส่งลิงก์แล้ว'],['reset','ตั้งรหัสผ่านใหม่'],['timeout','หมดเวลาใช้งาน'],['session','แจ้งเตือนใกล้หมดเวลา']]},
+ {id:'dashboard',n:'Dashboard',i:'home',no:2,hideSubs:1,ml:'มุมมองตาม Role',subs:[['admin','มุมมอง Admin / Owner'],['factory','มุมมองโรงงาน'],['acc','มุมมองบัญชี']]},
+ {id:'order',n:'Order',i:'list',no:3,subs:[['list','รายการ Order'],['create','สร้าง Order'],['upload','อัปโหลด Excel']],mapExtra:[['detail','รายละเอียด Order'],['edit','แก้ไข Order']]},
+ {id:'factory',n:'โรงงาน',i:'factory',no:4,subs:[['queue','คิว Order'],['production','สรุปยอดผลิต'],['print','พิมพ์เอกสาร'],['shipping','การจัดส่ง']]},
+ {id:'acc',n:'บัญชี',i:'receipt',no:5,subs:[['revenue','รับรู้รายได้'],['docs','เอกสารบัญชี'],['credit','ใบลดหนี้'],['recon','กระทบยอด Marketplace']]},
+ {id:'report',n:'รายงาน',i:'chart',no:6,subs:[['sales','ยอดขาย'],['pending','Order ค้าง'],['edits','สถิติแก้ไข/ยกเลิก'],['tax','ภาษีขาย'],['recon','กระทบยอด']]},
+ {id:'platform',n:'เชื่อมต่อ Platform',i:'plug',no:7,subs:[['conn','การเชื่อมต่อ'],['log','Log การเชื่อมต่อ'],['sku','SKU ที่จับคู่ไม่ได้']]},
+ {id:'master',n:'ข้อมูลหลัก',i:'db',no:8,subs:[['products','สินค้า'],['skumap','จับคู่ SKU'],['customers','ลูกค้า'],['channels','ช่องทางการขาย'],['carriers','ขนส่ง'],['reasons','เหตุผลยกเลิก'],['cutoff','เวลาตัดรอบ'],['company','ข้อมูลบริษัท'],['import','นำเข้าข้อมูลเก่า']]},
+ {id:'stock',n:'รายการเคลื่อนไหว',i:'boxes',no:9,draft:1,subs:[['onhand','สต็อกคงเหลือ'],['movein','รับเข้า / ปรับยอด'],['ledger','ประวัติการเคลื่อนไหว']]},
+ {id:'users',n:'ผู้ใช้และสิทธิ์',i:'users',no:10,subs:[['list','ผู้ใช้'],['roles','Role และสิทธิ์'],['audit','Audit log'],['notif','ศูนย์แจ้งเตือน']]},
+];
+/* map metadata: description · SRS ids · modals · pending flag */
+const META={
+'auth-login':['Login ด้วยอีเมลและรหัสผ่าน · logout อัตโนมัติเมื่อไม่ใช้งาน','1',[]],
+'auth-forgot':['กรอกอีเมลเพื่อรับลิงก์ตั้งรหัสผ่านใหม่','2',[]],
+'auth-sent':['ยืนยันว่าส่งลิงก์แล้ว ส่งซ้ำได้','2',[]],
+'auth-reset':['ตั้งรหัสผ่านใหม่ พร้อมเงื่อนไขความปลอดภัย','2',[]],
+'auth-timeout':['หน้า Login หลังเซสชันหมดอายุ (ระยะเวลา timeout รอกำหนด)','1',[],1],
+'auth-session':['นับถอยหลังก่อน logout อัตโนมัติ','1',['ใกล้หมดเวลาใช้งาน'],1],
+'dashboard-admin':['Order ค้างต่อสถานะ, Order ตามช่องทาง, แจ้งเตือน · กดไปยังรายการได้','3, 4, 5',[]],
+'dashboard-factory':['Role โรงงาน: คิวรอบนี้ ยอดผลิต แจ้งเตือนโรงงาน · เมนูเห็นเฉพาะที่มีสิทธิ์','6',[],1],
+'dashboard-acc':['Role บัญชี: รอออกบิล กระทบยอด ยอดขายวันนี้','6',[],1],
+'order-list':['Order ทุกช่องทาง ค้นหา/filter สถานะ Progress·รับเงิน·จัดส่ง · ยืนยันหลายรายการ','7, 16',['ยืนยันหลายรายการ']],
+'order-create':['ช่องทาง ลูกค้า ที่อยู่ VAT/NOVAT สินค้า รอบส่ง (ล่วงหน้าได้) ขนส่ง การชำระ','10–14',['เลือกลูกค้า','ลูกค้าใหม่','ที่อยู่จัดส่ง','เพิ่มหลังตัดรอบ'],1],
+'order-upload':['อัปโหลด Excel ตรวจข้อมูล แสดงแถวที่ผิด กัน Order ซ้ำ','19',[],1],
+'order-detail':['รายละเอียดทั้งหมด สถานะ 5 ขั้น การชำระ สลิป Tracking ประวัติแก้ไข','8, 9, 15',['ยืนยันการรับเงิน','ยกเลิก Order']],
+'order-edit':['แก้ไขสินค้า จำนวน ที่อยู่ ขนส่ง ตามสิทธิ์และเงื่อนไขเวลา','17',[],1],
+'factory-queue':['Order ที่ยืนยันแล้ว แยกรอบตัด (เที่ยง) และขนส่ง · รับทีละรายการหรือหลายรายการ','20, 21, 28',['รับ Order (หลายรายการ)','รายละเอียดการแก้ไขหลังรับ']],
+'factory-production':['ยอดสินค้ารวมต่อรอบ แยกตามสินค้าและขนส่ง อัปเดตเมื่อมี Order แทรก','22, 14',[]],
+'factory-print':['พิมพ์ใบจัดสินค้า / ใบปะหน้า (Marketplace ใช้ label ของ Platform)','23, 24',['ตัวอย่างก่อนพิมพ์']],
+'factory-shipping':['บันทึกเลข Tracking, sync กลับ Platform, ยืนยันส่งสำเร็จ, ส่งไม่ครบ','25, 26, 27',['บันทึก Tracking','ยืนยันส่งสำเร็จ','บันทึกส่งไม่ครบ'],1],
+'acc-revenue':['ข้อมูลรับรู้รายได้ เกิดเมื่อยืนยัน Order และส่งออกไปโปรแกรมบัญชี','29',['ส่งออกข้อมูลบัญชี'],1],
+'acc-docs':['ใบกำกับภาษี / ใบเสร็จ VAT·NOVAT รันเลขอัตโนมัติ พิมพ์กระดาษ 9×11','30, 31, 33',['ออกเอกสาร','ตัวอย่างใบกำกับ 9×11']],
+'acc-credit':['ใบลดหนี้อ้างอิงบิลเดิม เมื่อยกเลิก/คืนสินค้าหลังออกบิล','32',['สร้างใบลดหนี้']],
+'acc-recon':['เทียบยอดเงินโอนจาก Marketplace กับยอด Order แสดงค่าธรรมเนียม ค่าส่ง ส่วนต่าง','34',['อัปโหลดไฟล์ยอดโอน','ตรวจสอบรายการ']],
+'report-sales':['ยอดขายตามช่องทาง / สินค้า / วัน','35',[]],
+'report-pending':['Order ค้างแยกตามสถานะและอายุงาน','36',[]],
+'report-edits':['จำนวนการแก้ไขและยกเลิก แยกเหตุผลและช่องทาง','37',[]],
+'report-tax':['รายงานภาษีขายจากบิล VAT','38',[],1],
+'report-recon':['สรุปผลกระทบยอดรายเดือนต่อ Platform','39',[]],
+'platform-conn':['ตั้งค่า API Shopee / TikTok Shop / Lazada และ API ขนส่ง รองรับหลายร้าน','40, 41, 45, 49',['ตั้งค่า API']],
+'platform-log':['Log การดึงข้อมูลทั้งสำเร็จและล้มเหลว พร้อม Re-sync','46, 47, 48',['Re-sync ช่วงเวลา'],1],
+'platform-sku':['SKU ที่ map ไม่ได้ติด flag และแจ้ง Admin','42, 43',['จับคู่ SKU']],
+'master-products':['รหัส ชื่อ หน่วย ราคาแยกตามช่องทาง','50',['เพิ่ม/แก้ไขสินค้า']],
+'master-skumap':['กฎจับคู่ SKU ของแต่ละ Platform กับรหัสสินค้า','51',['จับคู่ SKU']],
+'master-customers':['ลูกค้าทุกช่องทาง หลายเบอร์ หลายที่อยู่ หลายชุดใบกำกับ','52',['รายละเอียดลูกค้า']],
+'master-channels':['รายการช่องทางการขาย','53',['เพิ่มช่องทาง']],
+'master-carriers':['รายการขนส่ง API และรูปแบบใบปะหน้า','54',['เพิ่มขนส่ง']],
+'master-reasons':['รายการเหตุผลการยกเลิก','55',['เพิ่มเหตุผล']],
+'master-cutoff':['เวลาตัดรอบ วันไม่ส่ง และเงื่อนไขแก้ไขหลังตัดรอบ','56',[]],
+'master-company':['ข้อมูลบริษัทสำหรับหัวบิล/ใบกำกับภาษี','57',[]],
+'master-import':['นำเข้าข้อมูลเก่าจาก AppSheet','58',[]],
+'stock-onhand':['สต็อกคงเหลือ จองโดย Order และพร้อมขาย','59',[],1],
+'stock-movein':['บันทึกรับเข้าจากการผลิต ปรับยอด ของเสีย','59',['ปรับยอดสต็อก'],1],
+'stock-ledger':['ประวัติเข้า-ออกของสินค้าทุกรายการ','59',[],1],
+'users-list':['เพิ่ม แก้ไข ปิดการใช้งานผู้ใช้','60',['เพิ่ม/แก้ไขผู้ใช้']],
+'users-roles':['สิทธิ์ต่อ Role: ดู/สร้าง/แก้ไข/ยืนยัน/ยกเลิก/เพิ่มหลังตัดรอบ','61',[],1],
+'users-audit':['ใครแก้ไข/ยกเลิก เวลา ค่าก่อนและหลัง','62',[]],
+'users-notif':['รวมการแจ้งเตือน SKU, API error, Order แก้ไข/ยกเลิกหลังโรงงานรับ','63',[]],
+};
+
+/* ---------- helpers ---------- */
+let UID=0;const uid=()=>'f'+(++UID);
+const ST={'รอตรวจสอบ':'amber','ยืนยันแล้ว':'blue','โรงงานรับแล้ว':'grey','จัดส่งแล้ว':'blue','จัดส่งสำเร็จ':'green','ยกเลิก':'red'};
+const B=(t,tone)=>`<span class="badge ${tone||ST[t]||'grey'}">${t}</span>`;
+const DRAFT=(t='รอยืนยัน')=>`<span class="badge draft">${t}</span>`;
+const btn=(l,k='sec',ic,attr='')=>`<button type="button" class="btn ${k}" ${attr}>${ic?I(ic,16):''}${l?`<span>${l}</span>`:''}</button>`;
+const ob=(l,k,ic,m,extra='')=>btn(l,k,ic,`data-open="${m}" ${extra}`);
+const sm=(l,k='sec',ic,attr='')=>btn(l,k+' sm',ic,attr);
+const head=(t,s,r='')=>`<div class="page-head"><div><h1>${t}</h1>${s?`<p class="muted">${s}</p>`:''}</div>${r?`<div class="actions">${r}</div>`:''}</div>`;
+const card=(t,body,r='',cls='')=>`<section class="card ${cls}">${t?`<div class="card-h"><h2>${t}</h2>${r?`<div class="actions">${r}</div>`:''}</div>`:''}${body}</section>`;
+const stats=a=>`<div class="stats">${a.map(([l,v,t,s,go])=>{const inner=`<div class="stat-l"><i class="dot ${t||''}"></i>${l}</div><div class="stat-v">${v}</div>${s?`<div class="muted sm">${s}</div>`:''}`;return go?`<button type="button" class="stat stat-go" data-go="${go}">${inner}</button>`:`<div class="stat">${inner}</div>`;}).join('')}</div>`;
+const alrt=(t,s,tone,go,ic='alert')=>`<button type="button" class="alrt ${tone}" ${go.startsWith('m-')?`data-open="${go}"`:`data-go="${go}"`}>${I(ic,20)}<span class="grow"><b>${t}</b><span class="muted sm" style="display:block">${s}</span></span>${I('cr',18)}</button>`;
+const steps=(a,c)=>`<div class="steps">${a.map((l,i)=>`${i?`<span class="sline ${i<=c?'on':''}"></span>`:''}<div class="step ${i<c?'done':i===c?'cur':''}"><span class="sc">${i<c?I('check',14):i+1}</span><span>${l}</span></div>`).join('')}</div>`;
+const qty=n=>`<span class="qty"><button type="button" data-q="-1" aria-label="ลด">−</button><b>${n}</b><button type="button" data-q="1" aria-label="เพิ่ม">+</button></span>`;
+const ordL=o=>`<button type="button" class="linkb" data-go="order-detail">${o}</button>`;
+const banner=(t,tone='gold',ic='info',r='')=>`<div class="banner ${tone}">${I(ic,20)}<span class="t">${t}</span>${r}</div>`;
+const fld=(l,v='',o={})=>{const id=uid();let ctrl;
+  if(o.opts)ctrl=`<span class="inp">${o.ic?I(o.ic,16):''}<select id="${id}">${o.opts.map(x=>`<option${x===v?' selected':''}>${x}</option>`).join('')}</select>${I('cd',16)}</span>`;
+  else if(o.ta)ctrl=`<textarea class="ta" id="${id}" placeholder="${o.ph||''}">${v}</textarea>`;
+  else ctrl=`<span class="inp ${o.dis?'dis':''} ${o.err?'err':''}">${o.ic?I(o.ic,16):''}<input id="${id}" type="${o.type||'text'}" value="${v}" placeholder="${o.ph||''}" ${o.dis?'disabled':''}>${o.suf?`<em>${o.suf}</em>`:''}</span>`;
+  return `<div class="fld ${o.full?'full':''}">${l?`<label class="fl" for="${id}">${l}${o.req?' <b class="req">*</b>':''}</label>`:''}${ctrl}${o.hint?`<span class="hint">${o.hint}</span>`:''}${o.err?`<span class="hint" style="color:var(--red)">${o.err}</span>`:''}</div>`;};
+const seg=(a,on=0)=>`<div class="seg" role="group">${a.map((x,i)=>`<button type="button" class="chip ${i===on?'on':''}" data-seg>${x}</button>`).join('')}</div>`;
+const tabs=(a,on=0)=>`<div class="tabs" role="tablist">${a.map(([k,l,c],i)=>`<button type="button" role="tab" class="tab ${i===on?'on':''}" data-tab="${k}">${l}${c!=null?`<span class="cnt">${c}</span>`:''}</button>`).join('')}</div>`;
+const sw=(on)=>`<button type="button" class="sw ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="เปิด/ปิด"></button>`;
+const radio=(name,l,on)=>{const id=uid();return `<label class="radio" for="${id}"><input type="radio" id="${id}" name="${name}" ${on?'checked':''}><span>${l}</span></label>`;};
+const cbx=(l,on)=>{const id=uid();return `<label class="radio" for="${id}"><input type="checkbox" class="cb" id="${id}" ${on?'checked':''}><span>${l}</span></label>`;};
+const bar=(p,tone='')=>`<div class="bar ${tone}" style="width:100%"><i style="width:${Math.round(p*100)}%"></i></div>`;
+const ord=o=>`<span class="ord">${o}</span>`;
+const fbar=(ph,sels)=>`<div class="row wrap">${`<div style="flex:1;min-width:220px;max-width:340px">${fld('', '',{ph,ic:'search'})}</div>`}${sels.map(s=>`<div style="min-width:150px">${fld('',s[1],{opts:s[0]})}</div>`).join('')}</div>`;
+const kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+/* data view: table on desktop, cards on mobile.
+   cols:[label, align('r'|'c'|'wr')]; rows:[{c:[cells], t:tabKey, cls}] ; m:{t,b,s,l:[],a} */
+function dv(cols,rows,o={}){
+  const sel=o.sel;
+  const th=`<tr>${sel?`<th style="width:40px"><input type="checkbox" class="cb cb-all" aria-label="เลือกทั้งหมด"></th>`:''}${cols.map(([l,a])=>`<th class="${a||''}">${l}</th>`).join('')}</tr>`;
+  const trs=rows.map(r=>`<tr class="${r.cls||''}" ${r.t?`data-t="${r.t}"`:''}>${sel?`<td><input type="checkbox" class="cb cb-row" aria-label="เลือก" ${r.on?'checked':''}></td>`:''}${r.c.map((c,i)=>`<td class="${cols[i][1]||''}">${c}</td>`).join('')}</tr>`).join('');
+  const m=o.m||{t:0,l:cols.map((_,i)=>i).slice(1)};
+  const cards=rows.map(r=>`<div class="mcard ${r.cls||''}" ${r.t?`data-t="${r.t}"`:''}><div class="mtop">${sel?`<input type="checkbox" class="cb cb-row" aria-label="เลือก" ${r.on?'checked':''}>`:''}<div class="mt">${r.c[m.t]}</div>${m.b!=null?r.c[m.b]:''}</div>${m.s!=null?`<div class="muted sm">${r.c[m.s]}</div>`:''}${(m.l||[]).map(j=>kv(cols[j][0],r.c[j])).join('')}${m.a!=null&&r.c[m.a]?`<div class="mact">${r.c[m.a]}</div>`:''}</div>`).join('');
+  return `<div class="tw mt"><table>${th}${trs}</table></div><div class="mlist">${cards}</div>`;
+}
+const bulk=(acts)=>`<div class="bulk" hidden><span>เลือก <b class="bulk-n">0</b> รายการ</span><span class="sp"></span>${acts}</div>`;
+const thumbs=n=>`<div class="thumbs">${Array.from({length:n},()=>`<div class="thumb">${I('image',22)}</div>`).join('')}<button type="button" class="thumb add" aria-label="เพิ่มไฟล์">${I('plus',22)}</button></div>`;
+const plat=(n,c)=>`<span class="plat" style="background:${c}">${n}</span>`;
+
+/* ---------- views ---------- */
+const CAR=[['all','ทั้งหมด',46],['inter','Inter Express',18],['nim','Nim Express',12],['fuze','Fuze Express',8],['store','ส่งจากหน้าร้าน',5],['van','รถตู้/รถทัวร์',3]];
+const V={};
+V['map']=()=>head('แผนผังเมนู Module 1–10','เมนูย่อย หน้าจอ และ Modal ของแต่ละ Module อ้างอิงข้อ SRS · กรอบเส้นประ = รอยืนยันกับลูกค้า',btn('เริ่ม Demo จากหน้า Login','pri',null,'data-go="auth-login"'))+
+ banner('คลิกแต่ละรายการเพื่อเปิดหน้าจอ · ใช้ปุ่ม "จำลองมือถือ 390px" ด้านบนเพื่อดูมุมมองมือถือ','blue','info')+
+ `<div class="mapgrid">${MODS.filter(m=>m.no).map(m=>{const list=[...m.subs,...(m.mapExtra||[])];return `<section class="card mapcard"><div class="mh"><span class="mno">${m.no}</span><div class="grow"><h2>${m.n}</h2><span class="muted sm">${list.length} ${m.ml||'เมนูย่อย'}</span></div>${m.draft?DRAFT('ร่างข้อเสนอ Q24'):''}</div><div class="stack">${list.map(([k,l])=>{const x=META[m.id+'-'+k];return `<button type="button" class="subrow" data-go="${m.id}-${k}"><span class="sr1"><span class="grow">${l}</span>${x[3]?DRAFT():''}<span class="muted sm">SRS ${x[1]}</span>${I('cr',16)}</span><span class="muted sm">${x[0]}</span>${x[2].length?`<span class="mchips">${x[2].map(z=>`<span class="mchip">Modal · ${z}</span>`).join('')}</span>`:''}</button>`;}).join('')}</div></section>`;}).join('')}</div>`;
+
+/* ===== 1 Login ===== */
+const authP=inner=>`<div class="brand"><div class="logo"><b>สหัสา</b><span>Sahasa</span></div><div style="font-size:18px;font-weight:600">ระบบจัดการออเดอร์</div><div class="sm" style="color:var(--yellow)">เต้าหู้คลองแงะ · รวมออเดอร์ทุกช่องทางไว้ที่เดียว</div></div><div class="authf"><div class="acard">${inner}</div></div>`;
+const ah=(t,s)=>`<div><h1 style="font-size:24px">${t}</h1><p class="muted">${s}</p></div>`;
+const backL=()=>`<button type="button" class="btn ghost" data-go="auth-login" style="align-self:center">${I('cl',16)}<span>กลับไปหน้าเข้าสู่ระบบ</span></button>`;
+const bigBtn=(l,go,extra='')=>btn(l,'pri full',null,`data-go="${go}" style="height:48px" ${extra}`);
+V['auth-login']=()=>authP(ah('เข้าสู่ระบบ','ระบบจัดการออเดอร์ สหัสา')+fld('อีเมล','',{ph:'name@sahasa.co.th',ic:'mail'})+fld('รหัสผ่าน','',{ph:'กรอกรหัสผ่าน',ic:'lock',type:'password',suf:I('eye',16)})+`<button type="button" class="btn ghost" data-go="auth-forgot" style="align-self:flex-end;height:auto">ลืมรหัสผ่าน?</button>`+bigBtn('เข้าสู่ระบบ','dashboard-admin')+`<p class="muted sm">ระบบจะออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งานตามเวลาที่กำหนด</p>`);
+V['auth-forgot']=()=>authP(ah('ลืมรหัสผ่าน','กรอกอีเมลที่ใช้เข้าสู่ระบบ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปที่อีเมลนี้')+fld('อีเมล','',{ph:'name@sahasa.co.th',ic:'mail'})+bigBtn('ส่งลิงก์ตั้งรหัสผ่าน','auth-sent')+backL());
+V['auth-sent']=()=>authP(`<span class="circ" style="background:var(--green-soft);color:var(--green)">${I('mail',26)}</span>`+ah('ตรวจสอบอีเมลของคุณ','เราส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ s***@sahasa.co.th แล้ว ลิงก์มีอายุ 30 นาที')+banner('ไม่พบอีเมล? ตรวจสอบในโฟลเดอร์ Junk/Spam','gold','info')+btn('ส่งอีกครั้ง (00:45)','sec full','refresh','data-toast="ส่งลิงก์อีกครั้งแล้ว" style="height:48px"')+`<button type="button" class="btn ghost" data-go="auth-reset" style="align-self:center">ดูหน้าตั้งรหัสผ่านใหม่ (เมื่อกดลิงก์ในอีเมล)</button>`+backL());
+V['auth-reset']=()=>authP(ah('ตั้งรหัสผ่านใหม่','สำหรับบัญชี sales01@sahasa.co.th')+fld('รหัสผ่านใหม่','abcdefgh12',{ic:'lock',type:'password',suf:I('eye',16)})+fld('ยืนยันรหัสผ่านใหม่','abcdefg',{ic:'lock',type:'password',suf:I('eye',16),err:'รหัสผ่านไม่ตรงกัน'})+`<div class="stack" style="gap:6px">${[['อย่างน้อย 8 ตัวอักษร',1],['มีตัวเลขอย่างน้อย 1 ตัว',1],['มีตัวอักษรพิมพ์ใหญ่อย่างน้อย 1 ตัว',0]].map(([t,ok])=>`<div class="row sm" style="gap:8px;color:var(--${ok?'green':'text2'})">${I(ok?'check':'x',16)}${t}</div>`).join('')}</div>`+bigBtn('บันทึกรหัสผ่านใหม่','auth-login','data-toast="ตั้งรหัสผ่านใหม่แล้ว กรุณาเข้าสู่ระบบ"'));
+V['auth-timeout']=()=>authP(ah('เข้าสู่ระบบ','ระบบจัดการออเดอร์ สหัสา')+banner('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง','amber','clock')+fld('อีเมล','sales01@sahasa.co.th',{ic:'mail'})+fld('รหัสผ่าน','',{ph:'กรอกรหัสผ่าน',ic:'lock',type:'password',suf:I('eye',16)})+bigBtn('เข้าสู่ระบบ','dashboard-admin'));
+V['auth-session']=()=>V['dashboard-admin']();
+
+/* ===== 2 Dashboard ===== */
+const roleSw=on=>`<div class="row wrap"><span class="muted sm">มุมมองตาม Role (ตัวอย่าง)</span>${`<div class="seg">${[['dashboard-admin','Admin / Owner'],['dashboard-factory','โรงงาน'],['dashboard-acc','บัญชี']].map(([k,l])=>`<button type="button" class="chip ${k===on?'on':''}" data-go="${k}">${l}</button>`).join('')}</div>`}</div>`;
+const chBars=(rows,max,fmt=v=>v)=>`<div class="stack">${rows.map(([n,v])=>`<div class="row"><span style="width:80px;flex:none">${n}</span>${bar(v/max)}<b class="num" style="min-width:64px;text-align:right">${fmt(v)}</b></div>`).join('')}</div>`;
+V['dashboard-admin']=()=>roleSw('dashboard-admin')+banner('รอบตัดถัดไป: วันนี้ 12:00 น. · Order ในรอบนี้ 46 รายการ · เหลือเวลา 1 ชม. 25 นาที','gold','clock')+
+ stats([['รอตรวจสอบ','12','amber',0,'order-list'],['ยืนยันแล้ว','28','blue',0,'order-list'],['โรงงานรับแล้ว','15','grey',0,'factory-queue'],['จัดส่งแล้ว','40','blue',0,'factory-shipping'],['จัดส่งสำเร็จ','132','green',0,'order-list'],['ยกเลิก','3','red',0,'order-list']])+
+ `<div class="cols">${card('Order ตามช่องทางการขาย (วันนี้)',chBars([['Shopee',64],['TikTok',41],['Lazada',22],['Line',38],['Facebook',17],['หน้าร้าน',9],['โทร',6]],64))}${card('แจ้งเตือน',`<div class="stack" style="gap:10px">${alrt('SKU จับคู่ไม่ได้ 2 รายการ','Shopee · รอ Admin จับคู่รหัสสินค้า','amber','platform-sku')}${alrt('API error: Lazada','ดึงออเดอร์ไม่สำเร็จ 10:45 น. · กด Re-sync','red','platform-log')}${alrt('Order ถูกยกเลิกหลังโรงงานรับ','ORD-000128 · ยกเลิกจาก Platform','red','order-detail')}${alrt('Order Manual รอยืนยันรับเงิน 4 รายการ','Line 3 · Facebook 1','amber','order-list')}</div>`)}</div>`;
+V['dashboard-factory']=()=>roleSw('dashboard-factory')+banner('รอบตัดถัดไป: วันนี้ 12:00 น. · Order ในรอบนี้ 46 รายการ','gold','clock',sm('ไปที่คิว Order','sec',null,'data-go="factory-queue"'))+
+ stats([['รอโรงงานรับ','28','blue',0,'factory-queue'],['โรงงานรับแล้ว','15','grey',0,'factory-queue'],['รอจัดส่ง','12','amber',0,'factory-shipping'],['จัดส่งแล้ววันนี้','40','green',0,'factory-shipping']])+
+ `<div class="cols">${card('คิวรอบ 13 พ.ย. 12:00 แยกตามขนส่ง',`<div class="stack">${[['Inter Express',18],['Nim Express',12],['Fuze Express',8],['ส่งจากหน้าร้าน',5],['รถตู้/รถทัวร์',3]].map(([n,c])=>`<div class="row"><span style="width:120px;flex:none" class="sm">${n}</span>${bar(c/18)}<b class="num" style="min-width:64px;text-align:right">${c} Order</b></div>`).join('')}</div>`)}${card('สรุปยอดผลิตรอบนี้',`<div class="stack">${[['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','192','แพ็ค'],['น้ำจิ้ม 400g','74','ขวด']].map(([n,v,u])=>`<div class="flat row">${I('box',20)}<span class="grow">${n}</span><b class="stat-v" style="font-size:22px">${v}</b><span class="muted">${u}</span></div>`).join('')}</div>`,sm('ดูทั้งหมด','ghost',null,'data-go="factory-production"'))}</div>`+
+ card('แจ้งเตือนโรงงาน',`<div class="stack" style="gap:10px">${alrt('Order ถูกแก้ไขหลังโรงงานรับ','ORD-000128 · จำนวนเต้าหู้ 4 → 5 · Sales01 · 10:42','amber','m-flag','edit')}${alrt('Order แทรกหลังตัดรอบ','ORD-000150 · หัวหน้าเพิ่มเข้ารอบ 13 พ.ย. 12:00','blue','factory-queue')}${alrt('Order ถูกยกเลิกหลังโรงงานรับ','ORD-000117 · ลูกค้าขอยกเลิก','red','users-notif','x')}</div>`);
+V['dashboard-acc']=()=>roleSw('dashboard-acc')+stats([['รอออกบิล','18','amber',0,'acc-docs'],['ออกบิลแล้ววันนี้','32','green',0,'acc-docs'],['รอยืนยันรับเงิน','4','gold',0,'order-list'],['ยอดไม่ตรง (กระทบยอด)','3','red',0,'acc-recon']])+
+ `<div class="cols">${card('ยอดขายวันนี้ตามช่องทาง',chBars([['Shopee',19200],['TikTok',12300],['Line',11400],['Lazada',6600],['Facebook',5100],['หน้าร้าน',2700],['โทร',1640]],19200,v=>'฿'+v.toLocaleString('en-US')),`<b>รวม ฿58,940</b>`)}${card('งานที่ต้องทำ',`<div class="stack" style="gap:10px">${alrt('กระทบยอด Shopee ไม่ตรง 3 รายการ','ส่วนต่างรวม -฿126','red','acc-recon')}${alrt('Order ยกเลิกหลังออกบิล 1 รายการ','ต้องออกใบลดหนี้ อ้างอิง INV-2611-0040','amber','acc-credit')}${alrt('Order Manual รอยืนยันรับเงิน 4 รายการ','Line 3 · Facebook 1','gold','order-list')}</div>`)}</div>`;
+
+/* ===== 3 Order ===== */
+const SHIP={wait:'—',conf:'—',fac:B('รอจัดส่ง','amber'),ship:B('กำลังขนส่ง','blue'),done:B('ส่งถึงแล้ว','green'),cancel:'—'};
+const OL=[['ORD-000142','Shopee','สมชาย ใจดี','380',B('ผ่าน Platform','grey'),'13 พ.ย.','Inter Express','รอตรวจสอบ','wait',1],['ORD-000141','Line','ร้านเจ๊หมวย','1,250',B('รอยืนยันรับเงิน','gold'),'13 พ.ย.','Nim Express','รอตรวจสอบ','wait',1],['ORD-000140','TikTok','วิภา ส.','190',B('ผ่าน Platform','grey'),'13 พ.ย.','Fuze Express','ยืนยันแล้ว','conf'],['ORD-000139','Facebook','คุณนิด','570',B('รับเงินแล้ว','green'),'13 พ.ย.','รถตู้/รถทัวร์','โรงงานรับแล้ว','fac'],['ORD-000138','Lazada','ธนพล ก.','380',B('ผ่าน Platform','grey'),'12 พ.ย.','Inter Express','จัดส่งแล้ว','ship'],['ORD-000137','หน้าร้าน','ลูกค้าหน้าร้าน','190',B('รับเงินแล้ว','green'),'12 พ.ย.','ส่งจากหน้าร้าน','จัดส่งสำเร็จ','done'],['ORD-000136','โทร','ครัวป้าศรี','950',B('รับเงินแล้ว','green'),'15 พ.ย. (ล่วงหน้า)','Nim Express','ยืนยันแล้ว','conf'],['ORD-000135','Shopee','อรทัย พ.','380',B('ผ่าน Platform','grey'),'12 พ.ย.','Inter Express','ยกเลิก','cancel']];
+V['order-list']=()=>head('Order ทั้งหมด 230 รายการ','รวมทุกช่องทางการขาย',btn('Upload Excel','sec','upload','data-go="order-upload"')+btn('สร้าง Order','pri','plus','data-go="order-create"'))+
+ card('',fbar('ค้นหาเลข Order, ชื่อลูกค้า, เบอร์โทร',[[['ทุกช่องทาง','Shopee','TikTok','Lazada','Line','Facebook','หน้าร้าน','โทร'],'ทุกช่องทาง'],[['ทุกวันที่','วันนี้','7 วันล่าสุด'],'ทุกวันที่'],[['ทุกรอบส่ง','13 พ.ย. 12:00','14 พ.ย. 12:00'],'ทุกรอบส่ง'],[['ทุกขนส่ง','Inter Express','Nim Express','Fuze Express','ส่งจากหน้าร้าน','รถตู้/รถทัวร์'],'ทุกขนส่ง']])+
+ tabs([['all','ทั้งหมด',230],['wait','รอตรวจสอบ',12],['conf','ยืนยันแล้ว',28],['fac','โรงงานรับแล้ว',15],['ship','จัดส่งแล้ว',40],['done','จัดส่งสำเร็จ',132],['cancel','ยกเลิก',3]])+
+ bulk(sm('ยืนยันที่เลือก','gold','check','data-open="m-bulk"'))+
+ dv([['เลข Order'],['ช่องทาง'],['ลูกค้า'],['ยอดรวม (฿)','r'],['การรับเงิน'],['รอบส่ง'],['ขนส่ง'],['การจัดส่ง'],['สถานะ']],OL.map(r=>({t:r[8],on:r[9],c:[ordL(r[0]),r[1],r[2],r[3],r[4],r[5],r[6],SHIP[r[8]],r[7]==='ยกเลิก'?`${B('ยกเลิก')}<div class="muted sm">ลูกค้าขอยกเลิก</div>`:B(r[7])]})),{sel:1,m:{t:0,b:8,s:2,l:[1,3,4,5,6]}}),'','" data-tabscope data-selscope="');
+V['order-detail']=()=>head(`ORD-000141 ${B('รอตรวจสอบ')} ${B('Line','grey')}`,'สร้างโดย Sales01 · 13 พ.ย. 2569 09:12',btn('ยกเลิก Order','sec',null,'data-open="m-cancel"')+btn('แก้ไข','sec','edit','data-go="order-edit"')+btn('ยืนยัน Order','pri','check','data-toast="ยืนยัน ORD-000141 แล้ว · เข้าคิวโรงงาน"'))+
+ card('',steps(['รอตรวจสอบ','ยืนยันแล้ว','โรงงานรับแล้ว','จัดส่งแล้ว','จัดส่งสำเร็จ'],0))+
+ `<div class="cols side"><div class="stack" style="gap:20px">${card('รายการสินค้า',dv([['สินค้า'],['จำนวน','r'],['ราคา','r'],['รวม (฿)','r']],[{c:['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','5','190','950']},{c:['น้ำจิ้ม 400g','2','125','250']}],{m:{t:0,l:[1,2,3]}})+`<div class="stack" style="gap:6px">${kv('ยอดสินค้า','฿1,200')}${kv('ค่าส่ง','฿50')}<hr>${kv('ยอดรวม','<b style="font-size:20px">฿1,250</b>')}</div>`)}${card('ประวัติการแก้ไข',`<div class="stack">${[['13 พ.ย. 09:30','Sales01 แก้ไขจำนวน เต้าหู้คลองแงะ แพ็ค 10 ชิ้น: 4 → 5'],['13 พ.ย. 09:12','Sales01 สร้าง Order (ช่องทาง Line)']].map(([t,d])=>`<div><div class="muted sm">${t}</div><div>${d}</div></div>`).join('')}</div>`,sm('ดู Audit log','ghost',null,'data-go="users-audit"'))}</div>
+ <div class="stack" style="gap:20px">${card('ลูกค้าและที่อยู่จัดส่ง',`<div><b>ร้านเจ๊หมวย</b><div class="muted sm">081-234-5678</div></div><div class="sm">99/9 ถ.ตัวอย่าง ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110</div>${kv('ประเภทการออกบิล','NOVAT')}`)}${card('การชำระเงิน',`${kv('วิธีชำระ','โอน')}${kv('สถานะ',B('รอยืนยันรับเงิน','gold'))}${thumbs(2)}${btn('ยืนยันการรับเงิน','gold full','check','data-open="m-pay"')}`)}${card('การจัดส่ง',`${kv('ขนส่ง','Nim Express (กทม.)')}${kv('รอบการส่ง','13 พ.ย. 2569 · 12:00')}${kv('เลข Tracking','—')}${kv('สถานะการจัดส่ง',B('ยังไม่จัดส่ง','grey'))}`)}</div></div>`;
+V['order-create']=()=>head('สร้าง Order Manual','สำหรับ Order จาก Line / Facebook / หน้าร้าน / โทร',btn('ยกเลิก','sec',null,'data-go="order-list"')+btn('บันทึก Order','pri','check','data-toast="สร้าง ORD-000153 แล้ว · สถานะรอตรวจสอบ"'))+
+ banner('ตอนนี้ 12:20 น. เลยเวลาตัดรอบวันนี้แล้ว · Order จะเข้ารอบ 14 พ.ย. 12:00','amber','clock',sm('เพิ่มเข้ารอบวันนี้','sec',null,'data-open="m-cutoff"'))+
+ `<div class="cols side"><div class="stack" style="gap:20px">
+ ${card('ช่องทางการขาย <b class="req">*</b>',seg(['Line','Facebook','หน้าร้าน','โทร'])+`<span class="hint">ต้องเลือกช่องทางที่รับ Order ทุกครั้ง</span>`)}
+ ${card('ลูกค้า',`<div class="row wrap"><div class="grow" style="min-width:200px">${fld('','',{ph:'ค้นหาเบอร์โทรหรือชื่อ',ic:'search'})}</div>${btn('เลือกลูกค้า','sec','user','data-open="m-cust"')}${btn('ลูกค้าใหม่','sec','plus','data-open="m-newcust"')}</div><div class="flat row"><div class="grow"><b>ร้านเจ๊หมวย</b><div class="muted sm">081-234-5678 · ลูกค้า Line</div></div>${sm('เปลี่ยน','ghost',null,'data-open="m-cust"')}</div><div class="fld"><span class="fl">ที่อยู่จัดส่ง</span><div class="flat row">${I('pin',18)}<span class="grow sm">99/9 ถ.ตัวอย่าง ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110</span>${sm('เปลี่ยน','ghost',null,'data-open="m-addr"')}</div></div><div class="fld"><span class="fl">ประเภทการออกบิล</span>${seg(['NOVAT','VAT'])}</div>`)}
+ ${card('สินค้า',`${dv([['สินค้า'],['จำนวน','c'],['ราคา/หน่วย','r'],['รวม','r'],['','r']],[{c:['<b>เต้าหู้คลองแงะ แพ็ค 10 ชิ้น</b><div class="muted sm">ราคา Line ฿190</div>',qty(5),'190','950',sm('','sec','trash','aria-label="ลบ"')]},{c:['<b>น้ำจิ้ม 400g</b><div class="muted sm">ราคา Line ฿125</div>',qty(2),'125','250',sm('','sec','trash','aria-label="ลบ"')]}],{m:{t:0,l:[1,3],a:4}})}<div class="row wrap">${btn('เพิ่มสินค้า','sec','plus')}<span class="hint">วิธีคิดราคาและค่าส่งของช่องทาง Manual รอยืนยัน (Q2–Q5)</span></div>`)}
+ ${card('การจัดส่ง',`<div class="fgrid">${fld('ขนส่ง','Nim Express (กทม.)',{opts:['Inter Express (หาดใหญ่)','Nim Express (กทม.)','Fuze Express (กทม.)','ส่งจากหน้าร้าน','รถตู้/รถทัวร์']})}${fld('รอบการส่ง','14 พ.ย. 2569 · 12:00',{opts:['14 พ.ย. 2569 · 12:00','15 พ.ย. 2569 · 12:00','16 พ.ย. 2569 · 12:00'],hint:'เลือกวันอื่นได้ = Order ล่วงหน้า'})}</div>`)}
+ ${card('การชำระเงิน',`${seg(['โอน','เงินสด'])}<div class="drop">${I('upload',24)}<b>แนบสลิป (ได้หลายไฟล์)</b><span class="muted sm">JPG, PNG, PDF</span></div>`)}
+ </div>${card('สรุป Order',`<div class="stack" style="gap:6px">${kv('ช่องทาง','Line')}${kv('ลูกค้า','ร้านเจ๊หมวย')}${kv('รอบส่ง','14 พ.ย. 12:00')}<hr>${kv('ยอดสินค้า','฿1,200')}${kv('ค่าส่ง','฿50')}<hr>${kv('ยอดรวม','<b style="font-size:22px">฿1,250</b>')}</div>${btn('บันทึก Order','pri full','check','data-toast="สร้าง ORD-000153 แล้ว · สถานะรอตรวจสอบ"')}`)}</div>`;
+V['order-edit']=()=>head('แก้ไข ORD-000141','Line · ร้านเจ๊หมวย',btn('ยกเลิก','sec',null,'data-go="order-detail"')+btn('บันทึกการแก้ไข','pri','check','data-go="order-detail" data-toast="บันทึกการแก้ไขแล้ว · แจ้งเตือนโรงงานแล้ว"'))+
+ banner('แก้ไขได้ถึง 14 พ.ย. 2569 08:00 น. (20 ชั่วโมงหลังตัดรอบ) · หลังจากนั้นระบบล็อกการแก้ไข','blue','lock',DRAFT('Q9'))+banner('โรงงานรับ Order นี้แล้ว · เมื่อบันทึก ระบบจะแจ้งเตือนโรงงานทันที','red','alert')+
+ `<div class="cols side"><div class="stack" style="gap:20px">${card('สินค้า',dv([['สินค้า'],['จำนวน','c'],['ราคา/หน่วย','r'],['รวม','r']],[{c:['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',qty(5),'190','950']},{c:['น้ำจิ้ม 400g',qty(2),'125','250']}],{m:{t:0,l:[1,3]}})+btn('เพิ่มสินค้า','sec','plus'))}${card('ที่อยู่และการจัดส่ง',`<div class="fgrid">${fld('ที่อยู่จัดส่ง','เจ๊หมวย (หน้าร้าน) · หาดใหญ่',{opts:['เจ๊หมวย (หน้าร้าน) · หาดใหญ่','คุณต้น (สาขา 2) · คอหงส์'],full:1})}${fld('ขนส่ง','Nim Express (กทม.)',{opts:['Inter Express (หาดใหญ่)','Nim Express (กทม.)','Fuze Express (กทม.)']})}${fld('รอบการส่ง','13 พ.ย. 2569 · 12:00',{opts:['13 พ.ย. 2569 · 12:00','14 พ.ย. 2569 · 12:00']})}</div><span class="hint">Order จาก Marketplace แก้ไขได้เฉพาะบาง field (รอยืนยัน Q9)</span>`)}</div>
+ <div class="stack" style="gap:20px">${card('สรุปการเปลี่ยนแปลง',`<div class="stack" style="gap:8px">${[['เต้าหู้ แพ็ค 10','4','5'],['ยอดรวม','฿1,060','฿1,250']].map(([f,a,b])=>`<div class="flat"><div class="muted sm">${f}</div><div><s class="muted">${a}</s> → <b>${b}</b></div></div>`).join('')}</div>`)}${card('เมื่อเลยเวลาแก้ไข',`${banner('เลยเวลาแก้ไขแล้ว (14 พ.ย. 08:00) · ติดต่อหัวหน้าหรือ Admin','red','lock')}${fld('จำนวน','5',{dis:1})}<span class="hint">ตัวอย่างสถานะล็อก: ช่องข้อมูลแก้ไขไม่ได้ และปุ่มบันทึกถูกปิด</span>`)}</div></div>`;
+V['order-upload']=()=>head('อัปโหลด Excel','บันทึกหลายรายการใน template แล้วอัปโหลดเข้าระบบ',btn('ดาวน์โหลด Template','sec','download','data-toast="ดาวน์โหลด template (ตัวอย่าง)"'))+
+ card('',steps(['ดาวน์โหลด Template','อัปโหลดไฟล์','ตรวจสอบข้อมูล','นำเข้า'],2))+
+ `<div class="cols side"><div class="stack" style="gap:20px">${stats([['แถวทั้งหมด','48','blue'],['พร้อมนำเข้า','42','green'],['ข้อมูลผิด','4','red'],['Order ซ้ำ','2','amber']])}${card('',tabs([['all','มีปัญหาทั้งหมด',6],['err','ข้อมูลผิด',4],['dup','ซ้ำ',2]])+dv([['แถว','r'],['Platform'],['Order Ref'],['คอลัมน์'],['ปัญหา','wr']],[
+  {t:'err',cls:'bad',c:['7','Line','—','เบอร์โทร','รูปแบบเบอร์ไม่ถูกต้อง (08-123)']},
+  {t:'err',cls:'bad',c:['12','Facebook','—','สินค้า','ไม่พบรหัสสินค้า "TOFU-20"']},
+  {t:'err',cls:'bad',c:['19','โทร','—','รอบส่ง','วันที่ส่งเป็นวันหยุด (อา. 16 พ.ย.)']},
+  {t:'err',cls:'bad',c:['31','Shopee','—','Order Ref','ไม่มีเลข Order ของ Platform (ต้องส่งเสมอ)']},
+  {t:'dup',cls:'hl',c:['22','Shopee','<span class="mono">2611130XY55</span>','Order Ref','มีในระบบแล้ว (ORD-000131) · จะไม่สร้างซ้ำ']},
+  {t:'dup',cls:'hl',c:['40','Lazada','<span class="mono">LZ88120931</span>','Order Ref','ซ้ำกับแถว 18 ในไฟล์เดียวกัน']},
+ ],{m:{t:4,s:0,l:[1,2,3]}}),'','" data-tabscope="')}</div>
+ ${card('ไฟล์ที่อัปโหลด',`<div class="flat row">${I('file',20)}<div class="grow"><b>orders_13nov.xlsx</b><div class="muted sm">48 แถว · 24 KB</div></div>${sm('เปลี่ยนไฟล์','ghost')}</div>${btn('ดาวน์โหลดแถวที่ผิด','sec full','download','data-toast="ดาวน์โหลดแถวที่ผิด (ตัวอย่าง)"')}${btn('นำเข้า 42 รายการ','pri full','check','data-toast="นำเข้า 42 Order แล้ว · ระบบสร้างเลข Order ให้อัตโนมัติ"')}<span class="hint">คอลัมน์ของ template และเกณฑ์ตรวจซ้ำของ Order ที่ไม่มีเลข Platform รอยืนยัน (Q38)</span>`)}</div>`;
+
+/* ===== 4 โรงงาน ===== */
+V['factory-queue']=()=>head('คิว Order','Order ที่ยืนยันแล้ว แยกตามรอบตัดและขนส่ง',btn('พิมพ์ใบจัดสินค้า','sec','printer','data-go="factory-print"')+ob('รับ Order ที่เลือก','pri','check','m-accept'))+
+ banner('รอบ 13 พ.ย. 2569 · ตัดรอบ 12:00 น. · เหลือเวลา 1 ชม. 25 นาที','gold','clock',seg(['13 พ.ย. (วันนี้)','14 พ.ย.','15 พ.ย. · ล่วงหน้า 4']))+
+ stats([['รอโรงงานรับ','28','blue'],['โรงงานรับแล้ว','15','grey'],['แทรกหลังตัดรอบ','1','amber'],['แก้ไข/ยกเลิกหลังรับ','2','red']])+
+ card('',`${tabs(CAR)}${bulk(sm('รับ Order','pri','check','data-open="m-accept"')+sm('พิมพ์ใบจัดสินค้า','sec','printer','data-go="factory-print"'))}`+dv([['เลข Order'],['ช่องทาง'],['ลูกค้า'],['สินค้า'],['ขนส่ง'],['สถานะ'],['หมายเหตุ'],['','r']],[
+  {t:'inter',on:1,c:[ord('ORD-000142'),'Shopee','สมชาย ใจดี','เต้าหู้ ×2','Inter Express',B('ยืนยันแล้ว'),'—',sm('รับ','sec','check','data-open="m-accept"')]},
+  {t:'nim',on:1,c:[ord('ORD-000141'),'Line','ร้านเจ๊หมวย','เต้าหู้ ×5 · น้ำจิ้ม ×2','Nim Express',B('ยืนยันแล้ว'),'—',sm('รับ','sec','check','data-open="m-accept"')]},
+  {t:'inter',cls:'hl',c:[ord('ORD-000150'),'โทร','ครัวป้าศรี','เต้าหู้ ×6','Inter Express',B('ยืนยันแล้ว'),B('แทรกหลังตัดรอบ','amber'),sm('รับ','sec','check','data-open="m-accept"')]},
+  {t:'fuze',c:[ord('ORD-000140'),'TikTok','วิภา ส.','เต้าหู้ ×1','Fuze Express',B('ยืนยันแล้ว'),'—',sm('รับ','sec','check','data-open="m-accept"')]},
+  {t:'inter',cls:'bad',c:[ord('ORD-000128'),'Facebook','คุณนิด','เต้าหู้ ×5 · น้ำจิ้ม ×1','Inter Express',B('โรงงานรับแล้ว'),`<button type="button" class="badge red" data-open="m-flag" style="border:0">แก้ไขหลังรับ · ดู</button>`,'']},
+  {t:'van',c:[ord('ORD-000137'),'หน้าร้าน','ลูกค้าหน้าร้าน','เต้าหู้ ×10','รถตู้/รถทัวร์',B('โรงงานรับแล้ว'),'—','']},
+  {t:'store',c:[ord('ORD-000136'),'โทร','ครัวป้าศรี','น้ำจิ้ม ×4','ส่งจากหน้าร้าน',B('ยืนยันแล้ว'),'—',sm('รับ','sec','check','data-open="m-accept"')]},
+  {t:'nim',c:[ord('ORD-000133'),'Lazada','ธนพล ก.','เต้าหู้ ×3','Nim Express',B('ยืนยันแล้ว'),'—',sm('รับ','sec','check','data-open="m-accept"')]},
+ ],{sel:1,m:{t:0,b:5,s:2,l:[3,4,6],a:7}}),'','" data-tabscope data-selscope="');
+
+V['factory-production']=()=>head('สรุปยอดผลิต','ยอดสินค้ารวมต่อรอบ ใช้วางแผนผลิตและจัดสินค้า',seg(['13 พ.ย. (วันนี้)','14 พ.ย.','15 พ.ย.'])+btn('พิมพ์ใบสรุป','sec','printer','data-open="m-printprev"'))+
+ banner('ยอดอัปเดตอัตโนมัติ: +6 แพ็ค จาก Order แทรกหลังตัดรอบ (ORD-000150) เมื่อ 12:20 น.','amber','refresh')+
+ `<div class="cols">${[['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','192','แพ็ค',0.62,'จัดแล้ว 120 / 192'],['น้ำจิ้ม 400g','74','ขวด',0.81,'จัดแล้ว 60 / 74']].map(([n,v,u,p,s])=>card('',`<div class="row"><span class="plat" style="background:var(--gold-soft);color:var(--amber)">${I('box',22)}</span><div class="grow"><h3>${n}</h3><span class="muted sm">รวมทุกขนส่ง · รอบ 13 พ.ย. 12:00</span></div><div style="text-align:right"><span class="stat-v">${v}</span> <span class="muted">${u}</span></div></div>${bar(p,'green')}<span class="muted sm">${s}</span>`)).join('')}</div>`+
+ card('แยกตามขนส่ง',dv([['ขนส่ง'],['จำนวน Order','r'],['เต้าหู้ (แพ็ค)','r'],['น้ำจิ้ม (ขวด)','r'],['ใบปะหน้า']],[
+  {c:['Inter Express (หาดใหญ่)','18','78','30',B('Platform label 14 · ระบบ 4','blue')]},{c:['Nim Express (กทม.)','12','52','20',B('Platform label 9 · ระบบ 3','blue')]},{c:['Fuze Express (กทม.)','8','30','12',B('Platform label 8','blue')]},{c:['ส่งจากหน้าร้าน','5','20','8',B('ไม่ต้องใช้','grey')]},{c:['รถตู้/รถทัวร์','3','12','4',B('ระบบ 3','grey')]},{cls:'tot',c:['รวม','46','192','74','']}
+ ],{m:{t:0,l:[1,2,3,4]}}));
+
+V['factory-print']=()=>head('พิมพ์เอกสาร','พิมพ์ใบจัดสินค้าและใบปะหน้า ทีละรายการหรือหลายรายการ')+
+ card('',`<div class="row wrap">${seg(['ใบจัดสินค้า','ใบปะหน้า'])}<span class="grow"></span><div style="min-width:180px">${fld('','รอบ 13 พ.ย. 12:00',{opts:['รอบ 13 พ.ย. 12:00','รอบ 14 พ.ย. 12:00']})}</div><div style="min-width:180px">${fld('','ทุกขนส่ง',{opts:['ทุกขนส่ง','Inter Express','Nim Express','Fuze Express','รถตู้/รถทัวร์']})}</div></div>`+
+ banner('Order จาก Marketplace ดึง label จาก Platform · Order Manual พิมพ์ใบปะหน้าจากระบบ (รูปแบบของ Inter / Nim / Fuze รอยืนยัน)','blue','info')+
+ bulk(sm('ดูตัวอย่างและพิมพ์','pri','printer','data-open="m-printprev"'))+
+ dv([['เลข Order'],['ช่องทาง'],['ลูกค้า'],['ขนส่ง'],['ที่มาใบปะหน้า'],['ใบจัดสินค้า'],['ใบปะหน้า']],[
+  {on:1,c:[ord('ORD-000142'),'Shopee','สมชาย ใจดี','Inter Express',B('Platform label','blue'),B('ยังไม่พิมพ์','amber'),B('ยังไม่พิมพ์','amber')]},
+  {on:1,c:[ord('ORD-000141'),'Line','ร้านเจ๊หมวย','Nim Express',B('ฟอร์มระบบ','grey'),B('ยังไม่พิมพ์','amber'),B('ยังไม่พิมพ์','amber')]},
+  {on:1,c:[ord('ORD-000150'),'โทร','ครัวป้าศรี','Inter Express',B('ฟอร์มระบบ','grey'),B('ยังไม่พิมพ์','amber'),B('ยังไม่พิมพ์','amber')]},
+  {c:[ord('ORD-000140'),'TikTok','วิภา ส.','Fuze Express',B('Platform label','blue'),B('พิมพ์แล้ว 1 ครั้ง','green'),B('พิมพ์แล้ว 1 ครั้ง','green')]},
+  {c:[ord('ORD-000133'),'Lazada','ธนพล ก.','Nim Express',B('Platform label','blue'),B('พิมพ์แล้ว 2 ครั้ง','green'),B('ยังไม่พิมพ์','amber')]},
+ ],{sel:1,m:{t:0,s:2,l:[3,4,5,6]}}),'','" data-selscope="');
+
+V['factory-shipping']=()=>head('การจัดส่ง','บันทึกเลข Tracking ติดตามสถานะ และ sync กลับ Platform',ob('บันทึกส่งไม่ครบ','sec','alert','m-short')+ob('บันทึก Tracking','pri','truck','m-track'))+
+ banner('ข้อ 25–26 ยังไม่ Sign off · ข้อเสนอ: เมื่อได้เลข Tracking (จาก API ขนส่งหรือคีย์เอง) ระบบเปลี่ยนเป็น "จัดส่งแล้ว" อัตโนมัติและ sync กลับ Platform','amber','info',DRAFT('ข้อเสนอ'))+
+ card('',tabs([['wait','รอจัดส่ง',12],['shipped','จัดส่งแล้ว',40],['done','จัดส่งสำเร็จ',132],['short','ส่งไม่ครบ',1],['all','ทั้งหมด']])+dv([['เลข Order'],['ลูกค้า'],['ขนส่ง'],['เลข Tracking'],['ที่มา'],['Sync Platform'],['สถานะ'],['','r']],[
+  {t:'wait',c:[ord('ORD-000142'),'สมชาย ใจดี','Inter Express','<span class="muted">—</span>','—',B('รอ Tracking','amber'),B('โรงงานรับแล้ว'),sm('บันทึก Tracking','sec','truck','data-open="m-track"')]},
+  {t:'wait',c:[ord('ORD-000141'),'ร้านเจ๊หมวย','Nim Express','<span class="muted">—</span>','—',B('ไม่ต้อง sync','grey'),B('โรงงานรับแล้ว'),sm('บันทึก Tracking','sec','truck','data-open="m-track"')]},
+  {t:'shipped',c:[ord('ORD-000139'),'คุณนิด','Inter Express','<span class="mono">IE6611300045</span>',B('API ขนส่ง','blue'),B('สำเร็จ 10:12','green'),B('จัดส่งแล้ว'),'']},
+  {t:'shipped',c:[ord('ORD-000137'),'ลูกค้าหน้าร้าน','รถตู้/รถทัวร์','<span class="mono">VAN-1311-02</span>',B('คีย์เอง','grey'),B('ไม่ต้อง sync','grey'),B('จัดส่งแล้ว'),sm('ยืนยันส่งสำเร็จ','sec','check','data-open="m-delivered"')]},
+  {t:'done',c:[ord('ORD-000130'),'บจก. สยามฟู้ด','Fuze Express','<span class="mono">FZ88213402</span>',B('API ขนส่ง','blue'),B('สำเร็จ','green'),B('จัดส่งสำเร็จ'),'']},
+  {t:'short',cls:'hl',c:[ord('ORD-000126'),'ครัวป้าศรี','Nim Express','<span class="mono">NM5520019</span>',B('API ขนส่ง','blue'),B('สำเร็จ','green'),B('ส่งไม่ครบ 2 แพ็ค','amber'),sm('ดูรายละเอียด','sec','eye','data-open="m-short"')]},
+ ],{m:{t:0,b:6,s:1,l:[2,3,5],a:7}}),'','" data-tabscope="');
+
+/* ===== 5 บัญชี ===== */
+V['acc-revenue']=()=>head('รับรู้รายได้','ข้อมูลรับรู้รายได้ เกิดเมื่อยืนยัน Order',ob('ส่งออกไปโปรแกรมบัญชี','pri','upload','m-export'))+
+ banner('จุดรับรู้รายได้ (Q16) และโปรแกรมบัญชีปลายทาง (Q21) รอยืนยัน · ตอนนี้ตั้งไว้ที่ "ยืนยัน Order"','amber','info')+
+ stats([['รายได้วันนี้','฿58,940','green'],['รอส่งข้อมูล','18','amber'],['ส่งแล้วเดือนนี้','214','blue'],['ส่งไม่สำเร็จ','1','red']])+
+ card('',tabs([['all','ทั้งหมด'],['wait','รอส่ง',18],['sent','ส่งแล้ว'],['err','ผิดพลาด',1]])+dv([['วันที่รับรู้'],['เลข Order'],['ช่องทาง'],['ลูกค้า'],['บิล'],['ก่อน VAT','r'],['VAT','r'],['ยอดรวม','r'],['สถานะ']],[
+  {t:'wait',c:['13 พ.ย. 09:20',ord('ORD-000141'),'Line','ร้านเจ๊หมวย','NOVAT','1,250.00','—','1,250.00',B('รอส่ง','amber')]},
+  {t:'wait',c:['13 พ.ย. 09:05',ord('ORD-000139'),'Facebook','บจก. สยามฟู้ด','VAT','532.71','37.29','570.00',B('รอส่ง','amber')]},
+  {t:'sent',c:['12 พ.ย. 16:40',ord('ORD-000130'),'Line','บจก. สยามฟู้ด','VAT','2,663.55','186.45','2,850.00',B('ส่งแล้ว','green')]},
+  {t:'err',cls:'bad',c:['12 พ.ย. 15:10',ord('ORD-000127'),'โทร','ครัวป้าศรี','VAT','887.85','62.15','950.00',B('ไม่มีเลขผู้เสียภาษี','red')]},
+ ],{m:{t:1,b:8,s:3,l:[0,4,7]}}),'','" data-tabscope="');
+
+V['acc-docs']=()=>head('เอกสารบัญชี','ใบกำกับภาษีและใบเสร็จ ออกตามประเภทการออกบิลของลูกค้า · รันเลขอัตโนมัติแยกตามประเภท',ob('ออกเอกสาร','pri','plus','m-issue'))+
+ card('',tabs([['all','ทั้งหมด'],['inv','ใบกำกับภาษี',32],['rc','ใบเสร็จรับเงิน',58]])+fbar('ค้นหาเลขที่เอกสาร, Order, ลูกค้า',[[['พ.ย. 2569','ต.ค. 2569'],'พ.ย. 2569'],[['VAT และ NOVAT','VAT','NOVAT'],'VAT และ NOVAT']])+dv([['เลขที่เอกสาร'],['ประเภท'],['อ้างอิง Order'],['ลูกค้า'],['บิล'],['ยอดรวม','r'],['วันที่'],['สถานะ'],['','r']],[
+  {t:'inv',c:['<b class="mono">INV-2611-0042</b>','ใบกำกับเต็มรูป',ord('ORD-000130'),'บจก. สยามฟู้ด',B('VAT','blue'),'2,850.00','12 พ.ย.',B('ออกแล้ว','green'),sm('ดูตัวอย่าง','sec','eye','data-open="m-invoice"')]},
+  {t:'inv',c:['<b class="mono">INV-2611-0041</b>','ใบกำกับอย่างย่อ',ord('ORD-000129'),'คุณนิด',B('VAT','blue'),'570.00','12 พ.ย.',B('ออกแล้ว','green'),sm('ดูตัวอย่าง','sec','eye','data-open="m-invoice"')]},
+  {t:'rc',c:['<b class="mono">RC-2611-0118</b>','ใบเสร็จรับเงิน',ord('ORD-000141'),'ร้านเจ๊หมวย',B('NOVAT','grey'),'1,250.00','13 พ.ย.',B('ออกแล้ว','green'),sm('ดูตัวอย่าง','sec','eye','data-open="m-invoice"')]},
+  {t:'inv',c:['<b class="mono">INV-2611-0038</b>','ใบกำกับเต็มรูป',ord('ORD-000117'),'ครัวป้าศรี',B('VAT','blue'),'950.00','10 พ.ย.',B('มีใบลดหนี้ CN-2611-0003','red'),sm('ดูตัวอย่าง','sec','eye','data-open="m-invoice"')]},
+ ],{m:{t:0,b:7,s:3,l:[1,2,5],a:8}})+`<span class="hint">รูปแบบเลขที่ INV-ปปดด-ลำดับ และรอบการรันเลข รอยืนยัน (Q20)</span>`,'','" data-tabscope="');
+
+V['acc-credit']=()=>head('ใบลดหนี้','ออกเมื่อยกเลิกหรือคืนสินค้าหลังออกบิล โดยอ้างอิงเลขที่บิลเดิม',ob('สร้างใบลดหนี้','pri','plus','m-credit'))+
+ banner('ORD-000144 ถูกยกเลิกหลังออกบิล INV-2611-0040 · ต้องออกใบลดหนี้','gold','alert',sm('สร้างจากรายการนี้','sec',null,'data-open="m-credit"'))+
+ card('',dv([['เลขที่'],['อ้างอิงบิล'],['Order'],['ลูกค้า'],['เหตุผล'],['มูลค่าลดหนี้','r'],['VAT','r'],['วันที่'],['สถานะ']],[
+  {c:['<b class="mono">CN-2611-0003</b>','<span class="mono">INV-2611-0038</span>',ord('ORD-000117'),'ครัวป้าศรี','ยกเลิก Order','887.85','62.15','11 พ.ย.',B('ออกแล้ว','green')]},
+  {c:['<b class="mono">CN-2611-0002</b>','<span class="mono">INV-2611-0021</span>',ord('ORD-000098'),'บจก. สยามฟู้ด','คืนสินค้าบางส่วน','355.14','24.86','6 พ.ย.',B('ออกแล้ว','green')]},
+  {c:['<b class="mono">CN-2611-0001</b>','<span class="mono">INV-2611-0007</span>',ord('ORD-000061'),'คุณนิด','ลดราคา','93.46','6.54','2 พ.ย.',B('ยกเลิกเอกสาร','grey')]},
+ ],{m:{t:0,b:8,s:3,l:[1,4,5]}}));
+
+V['acc-recon']=()=>head('กระทบยอด Marketplace','เทียบยอดเงินที่ Platform โอน (หลังหักค่าธรรมเนียม/ค่าส่ง) กับยอด Order',ob('อัปโหลดไฟล์ยอดโอน','sec','upload','m-settle'))+
+ `<div class="row wrap">${seg(['Shopee','Lazada','TikTok Shop'])}<span class="grow"></span><div style="min-width:220px">${fld('','รอบโอน 1–15 พ.ย. 2569',{opts:['รอบโอน 1–15 พ.ย. 2569','รอบโอน 16–31 ต.ค. 2569'],ic:'calendar'})}</div></div>`+
+ stats([['ยอด Order','฿184,200','blue'],['ค่าธรรมเนียม','-฿11,052','amber'],['ค่าส่ง','-฿3,960','amber'],['ยอดโอนจริง','฿169,062','green'],['ส่วนต่าง','-฿126','red','ไม่ตรง 3 รายการ']])+
+ card('',tabs([['all','ทั้งหมด',412],['bad','ไม่ตรง',3],['ok','ตรง',409]])+dv([['Order'],['Platform Order No.'],['วันที่โอน'],['ยอด Order','r'],['ค่าธรรมเนียม','r'],['ค่าส่ง','r'],['ควรได้รับ','r'],['โอนจริง','r'],['ส่วนต่าง','r'],['สถานะ'],['','r']],[
+  {t:'bad',cls:'bad',c:[ord('ORD-000101'),'<span class="mono">2611080AB12</span>','15 พ.ย.','380.00','-22.80','-40.00','317.20','275.00','<b style="color:var(--red)">-42.20</b>',B('ไม่ตรง','red'),sm('ตรวจสอบ','sec',null,'data-open="m-reconrow"')]},
+  {t:'bad',cls:'bad',c:[ord('ORD-000097'),'<span class="mono">2611071CD45</span>','15 พ.ย.','570.00','-34.20','-40.00','495.80','452.00','<b style="color:var(--red)">-43.80</b>',B('ไม่ตรง','red'),sm('ตรวจสอบ','sec',null,'data-open="m-reconrow"')]},
+  {t:'ok',c:[ord('ORD-000095'),'<span class="mono">2611071EF78</span>','15 พ.ย.','190.00','-11.40','-40.00','138.60','138.60','0.00',B('ตรง','green'),'']},
+  {t:'ok',c:[ord('ORD-000094'),'<span class="mono">2611069GH90</span>','15 พ.ย.','950.00','-57.00','-40.00','853.00','853.00','0.00',B('ตรง','green'),'']},
+ ],{m:{t:0,b:9,s:1,l:[3,6,7,8],a:10}}),'','" data-tabscope="');
+
+/* ===== 6 รายงาน ===== */
+const rfilter=()=>`<div class="row wrap"><div style="min-width:220px">${fld('','1–13 พ.ย. 2569',{ic:'calendar',opts:['1–13 พ.ย. 2569','ต.ค. 2569','ไตรมาส 4/2569']})}</div><div style="min-width:160px">${fld('','ทุกช่องทาง',{opts:['ทุกช่องทาง','Shopee','TikTok','Lazada','Line','Facebook','หน้าร้าน','โทร']})}</div><div style="min-width:160px">${fld('','ทุกสินค้า',{opts:['ทุกสินค้า','เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','น้ำจิ้ม 400g']})}</div><span class="grow"></span>${btn('ส่งออก Excel','sec','download','data-toast="เตรียมไฟล์ Excel แล้ว"')}</div>`;
+function salesChart(){const d=[38,42,35,51,47,39,44,58,62,49,45,53,60];const W=700,Hh=220,L=44,Bm=26,T=12,max=70,pw=W-L-12,ph=Hh-T-Bm,bw=pw/d.length;
+ let s=`<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="ยอดขายรายวัน 1–13 พ.ย. หน่วยพันบาท">`;
+ for(const v of [0,20,40,60]){const y=T+ph-(v/max)*ph;s+=`<line class="g" x1="${L}" x2="${W-12}" y1="${y}" y2="${y}"/><text class="lb" x="${L-8}" y="${y+4}" text-anchor="end">${v}k</text>`;}
+ d.forEach((v,i)=>{const h=(v/max)*ph,x=L+i*bw+bw*.2,y=T+ph-h;s+=`<rect class="b ${i===d.length-1?'last':''}" x="${x}" y="${y}" width="${bw*.6}" height="${h}" rx="3"/><text class="lb" x="${x+bw*.3}" y="${Hh-8}" text-anchor="middle">${i+1}</text>`;});
+ return s+'</svg>';}
+V['report-sales']=()=>head('รายงานยอดขาย','ยอดขายตามช่องทาง สินค้า และวัน')+rfilter()+stats([['ยอดขายรวม','฿623,400','green','+8.4% จากช่วงเดียวกันเดือนก่อน'],['จำนวน Order','2,418','blue'],['เฉลี่ยต่อ Order','฿258','grey'],['ยกเลิก','1.2%','red','29 Order']])+
+ card('ยอดขายรายวัน (พันบาท)',salesChart(),`<span class="muted sm">วันที่ 13 = วันนี้ (ยังไม่ปิดวัน)</span>`)+
+ `<div class="cols">${card('ตามช่องทาง',dv([['ช่องทาง'],['Order','r'],['ยอดขาย','r'],['สัดส่วน']],[['Shopee','812','฿203,100',.33],['TikTok','524','฿130,800',.21],['Line','406','฿120,400',.19],['Lazada','298','฿69,200',.11],['Facebook','214','฿54,600',.09],['หน้าร้าน','98','฿26,100',.04],['โทร','66','฿19,200',.03]].map(r=>({c:[r[0],r[1],r[2],`<div class="row" style="min-width:140px">${bar(r[3])}<span class="muted sm">${Math.round(r[3]*100)}%</span></div>`]})),{m:{t:0,b:2,l:[1,3]}}))}${card('ตามสินค้า',dv([['สินค้า'],['จำนวน','r'],['ยอดขาย','r']],[{c:['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','2,960 แพ็ค','฿548,600']},{c:['น้ำจิ้ม 400g','598 ขวด','฿74,800']},{cls:'tot',c:['รวม','','฿623,400']}],{m:{t:0,l:[1,2]}}))}</div>`;
+V['report-pending']=()=>head('รายงาน Order ค้าง','Order ค้างแยกตามสถานะและอายุงาน')+rfilter()+stats([['รอตรวจสอบ','12','amber'],['ยืนยันแล้ว (รอโรงงาน)','28','blue'],['โรงงานรับแล้ว (รอส่ง)','15','grey'],['จัดส่งแล้ว (รอสำเร็จ)','40','blue']])+
+ card('อายุงานตามสถานะ',dv([['สถานะ'],['< 1 วัน','r'],['1–2 วัน','r'],['> 2 วัน','r'],['รวม','r']],[{c:[B('รอตรวจสอบ'),'9','2','<b style="color:var(--red)">1</b>','12']},{c:[B('ยืนยันแล้ว'),'25','3','0','28']},{c:[B('โรงงานรับแล้ว'),'15','0','0','15']},{c:[B('จัดส่งแล้ว'),'22','14','<b style="color:var(--red)">4</b>','40']}],{m:{t:0,l:[1,2,3,4]}}))+
+ card('ค้างนานที่สุด',dv([['เลข Order'],['สถานะ'],['ค้างมา'],['ช่องทาง'],['ผู้รับผิดชอบ']],[{cls:'bad',c:[ord('ORD-000088'),B('จัดส่งแล้ว'),'4 วัน 2 ชม.','Lazada','รอสถานะจากขนส่ง']},{cls:'hl',c:[ord('ORD-000112'),B('รอตรวจสอบ'),'2 วัน 5 ชม.','Line','Sales01']}],{m:{t:0,b:1,l:[2,3,4]}}));
+V['report-edits']=()=>head('สถิติการแก้ไข/ยกเลิก','จำนวนการแก้ไขและยกเลิก แยกตามเหตุผลและช่องทาง')+rfilter()+stats([['แก้ไข','86','amber','3.6% ของ Order'],['ยกเลิก','29','red','1.2% ของ Order'],['แก้ไขหลังโรงงานรับ','11','amber'],['ยกเลิกหลังโรงงานรับ','4','red']])+
+ `<div class="cols">${card('เหตุผลการยกเลิก',`<div class="stack">${[['ลูกค้าขอยกเลิก',12],['ชำระเงินไม่สำเร็จ',7],['ที่อยู่ไม่ถูกต้อง / ติดต่อไม่ได้',4],['สินค้าหมด / ผลิตไม่ทัน',3],['Order ซ้ำ',2],['อื่นๆ',1]].map(([l,n])=>`<div class="row"><span style="width:200px;flex:none" class="sm">${l}</span>${bar(n/12)}<b class="num" style="width:28px;text-align:right">${n}</b></div>`).join('')}</div>`)}${card('ตามช่องทาง',dv([['ช่องทาง'],['แก้ไข','r'],['ยกเลิก','r'],['% ของ Order','r']],[['Shopee','18','9','3.3%'],['TikTok','12','7','3.6%'],['Line','31','6','9.1%'],['Lazada','8','4','4.0%'],['Facebook','11','2','6.1%'],['หน้าร้าน','2','0','2.0%'],['โทร','4','1','7.6%']].map(r=>({c:r})),{m:{t:0,l:[1,2,3]}}))}</div>`;
+V['report-tax']=()=>head('รายงานภาษีขาย','จากบิล VAT ที่ออกในระบบ',btn('ส่งออก Excel','sec','download','data-toast="เตรียมไฟล์ Excel แล้ว"'))+banner('ไม่มีในฟังก์ชันที่สรุปกับ Owner · รอยืนยันขอบเขต (SRS ข้อ 38)','amber','info',DRAFT())+
+ `<div class="row wrap"><div style="min-width:200px">${fld('','พฤศจิกายน 2569',{opts:['พฤศจิกายน 2569','ตุลาคม 2569'],ic:'calendar'})}</div></div>`+stats([['มูลค่าสินค้า/บริการ','฿148,224.30','blue'],['ภาษีขาย 7%','฿10,375.70','amber'],['รวม','฿158,600.00','green'],['ใบลดหนี้','-฿1,331.46','red','3 ฉบับ']])+
+ card('',dv([['วันที่'],['เลขที่ใบกำกับ'],['ชื่อผู้ซื้อ'],['เลขผู้เสียภาษี'],['สาขา'],['มูลค่า','r'],['VAT','r']],[{c:['12/11/69','<span class="mono">INV-2611-0042</span>','บจก. สยามฟู้ด','<span class="mono">0105561234567</span>','สำนักงานใหญ่','2,663.55','186.45']},{c:['12/11/69','<span class="mono">INV-2611-0041</span>','คุณนิด','—','—','532.71','37.29']},{c:['11/11/69','<span class="mono">CN-2611-0003</span>','ครัวป้าศรี','<span class="mono">3900100234567</span>','สำนักงานใหญ่','-887.85','-62.15']}],{m:{t:1,s:2,l:[0,5,6]}}));
+V['report-recon']=()=>head('รายงานกระทบยอด','สรุปผลการกระทบยอดเงินโอนจาก Marketplace รายเดือน')+rfilter()+
+ card('',dv([['Platform'],['เดือน'],['ยอด Order','r'],['ค่าธรรมเนียม','r'],['ค่าส่ง','r'],['ยอดโอน','r'],['ส่วนต่าง','r'],['ไม่ตรง','r']],[{c:['Shopee','พ.ย. 69','184,200','-11,052','-3,960','169,062','<b style="color:var(--red)">-126</b>','3']},{c:['Lazada','พ.ย. 69','61,400','-3,991','-1,240','56,169','0','0']},{c:['TikTok Shop','พ.ย. 69','—','—','—','—','—',B('ยังไม่เชื่อมต่อ','grey')]},{c:['Shopee','ต.ค. 69','352,800','-21,168','-7,600','324,032','0','0']}],{m:{t:0,s:1,l:[2,5,6,7]}}));
+
+/* ===== 7 Platform ===== */
+const pcard=(lg,col,n,shop,st,lines,acts)=>`<div class="ccard"><div class="row">${plat(lg,col)}<div class="grow"><h3>${n}</h3><span class="muted sm">${shop}</span></div>${st}</div><div class="stack" style="gap:6px">${lines.map(([k,v])=>kv(k,v)).join('')}</div><div class="actions">${acts}</div></div>`;
+V['platform-conn']=()=>head('การเชื่อมต่อ','ตั้งค่า API ของ Marketplace และขนส่ง')+
+ card('Marketplace',`<div class="grid3">${pcard('S','#ee4d2d','Shopee','ร้าน khlongngaetofu',B('เชื่อมต่อแล้ว','green'),[['ดึงข้อมูลล่าสุด','10:45 น.'],['วิธีดึง Order','Webhook + Pull ทุก 10 นาที'],['ส่งสถานะกลับ','เปิด']],ob('ตั้งค่า','sec','edit','m-api')+sm('ดึงตอนนี้','sec','refresh','data-toast="กำลังดึง Order จาก Shopee"'))}${pcard('L','#0f146d','Lazada','ร้าน Sahasa Official',B('ผิดพลาด','red'),[['ปัญหา','Access token หมดอายุ'],['ล้มเหลวล่าสุด','10:45 น.'],['Order ที่รอดึง','~6 รายการ']],ob('เชื่อมต่อใหม่','pri','link','m-api'))}${pcard('T','#111111','TikTok Shop','ยังไม่มีข้อมูลร้าน',B('ยังไม่เชื่อมต่อ','grey'),[['สถานะ','ระบบรองรับไว้แล้ว (Q33)'],['Order ที่ดึงได้','—']],ob('เชื่อมต่อ','sec','link','m-api'))}<button type="button" class="ccard add" data-open="m-api">${I('plus',22)}เพิ่มร้าน / Platform<span class="muted sm" style="font-weight:400">รองรับหลายร้านต่อ Platform (Q34)</span></button></div>`)+
+ card('API ขนส่ง',`<div class="grid3">${pcard('I','#1f6fb8','Inter Express','หาดใหญ่',B('เชื่อมต่อแล้ว','green'),[['อัปเดตสถานะล่าสุด','10:30 น.'],['คีย์เลข Tracking เอง','ได้']],ob('ตั้งค่า','sec','edit','m-api'))}${pcard('N','#1e8e4e','Nim Express','กรุงเทพฯ',B('เชื่อมต่อแล้ว','green'),[['อัปเดตสถานะล่าสุด','10:28 น.'],['คีย์เลข Tracking เอง','ได้']],ob('ตั้งค่า','sec','edit','m-api'))}${pcard('F','#b26b00','Fuze Express','กรุงเทพฯ',B('รอตั้งค่า','amber'),[['สถานะ','ยังไม่ใส่ API key'],['คีย์เลข Tracking เอง','ได้']],ob('ตั้งค่า','pri','key','m-api'))}</div>`);
+V['platform-log']=()=>head('Log การเชื่อมต่อ','ประวัติการดึงข้อมูลและ sync ทั้งสำเร็จและล้มเหลว',ob('Re-sync ช่วงเวลา','sec','refresh','m-resync'))+
+ stats([['สำเร็จ (24 ชม.)','1,284','green'],['ล้มเหลว (24 ชม.)','3','red'],['Order ที่ดึงวันนี้','212','blue'],['Sync สถานะกลับ','198','grey']])+
+ banner('ข้อเสนอสำหรับข้อ 47: ปุ่ม Re-sync อยู่ในแถวเดียวกับ log และแสดงเฉพาะแถวที่ล้มเหลว · Re-sync ทั้งช่วงเวลาใช้ปุ่มด้านบน','blue','info',DRAFT('รอยืนยันข้อ 47'))+
+ card('',tabs([['all','ทั้งหมด'],['fail','ล้มเหลว',3]])+dv([['เวลา'],['Platform'],['ประเภท'],['ผลลัพธ์'],['รายละเอียด','wr'],['','r']],[
+  {t:'fail',cls:'bad',c:['10:45:02','Lazada','ดึง Order (Pull)',B('ล้มเหลว','red'),'401 Unauthorized · Access token หมดอายุ',sm('Re-sync','sec','refresh','data-toast="ส่งคำสั่ง Re-sync แล้ว"')]},
+  {t:'ok',c:['10:45:00','Shopee','Webhook: order.created',B('สำเร็จ','green'),'สร้าง ORD-000152 (2611130XY77)','']},
+  {t:'ok',c:['10:40:11','Shopee','Sync สถานะกลับ',B('สำเร็จ','green'),'ORD-000139 → shipped · IE6611300045','']},
+  {t:'fail',cls:'bad',c:['10:35:02','Lazada','ดึง Order (Pull)',B('ล้มเหลว','red'),'401 Unauthorized',sm('Re-sync','sec','refresh','data-toast="ส่งคำสั่ง Re-sync แล้ว"')]},
+  {t:'ok',c:['10:31:44','Shopee','ดึง Order (Pull)',B('ข้าม (ซ้ำ)','grey'),'2611130XY55 มีอยู่แล้ว · ไม่สร้าง Order ซ้ำ','']},
+  {t:'fail',cls:'bad',c:['09:58:20','Inter Express','ดึงสถานะขนส่ง',B('ล้มเหลว','red'),'Timeout 30s',sm('Re-sync','sec','refresh','data-toast="ส่งคำสั่ง Re-sync แล้ว"')]},
+ ],{m:{t:1,b:3,s:0,l:[2,4],a:5}}),'','" data-tabscope="');
+V['platform-sku']=()=>head('SKU ที่จับคู่ไม่ได้','Order ที่มี SKU ไม่รู้จักจะติด flag และยังไม่เข้าคิวโรงงานจนกว่าจะจับคู่')+banner('มี 2 SKU ที่ยังไม่จับคู่ · กระทบ 6 Order · แจ้ง Admin แล้ว','red','alert')+
+ card('',dv([['Platform'],['SKU ของ Platform'],['ชื่อสินค้าใน Platform','wr'],['Order ที่ติด','r'],['พบครั้งแรก'],['','r']],[
+  {c:['Shopee','<span class="mono">TOFU-10-PROMO</span>','เต้าหู้คลองแงะ 10 ชิ้น (โปรแพ็คคู่)','4','12 พ.ย. 14:20',sm('จับคู่','pri',null,'data-open="m-skumatch"')]},
+  {c:['TikTok Shop','<span class="mono">SAUCE400-NEW</span>','น้ำจิ้มสูตรเด็ด 400 กรัม','2','13 พ.ย. 08:02',sm('จับคู่','pri',null,'data-open="m-skumatch"')]},
+ ],{m:{t:1,s:2,l:[0,3,4],a:5}}));
+
+/* ===== 8 ข้อมูลหลัก ===== */
+const actE=(m)=>sm('แก้ไข','sec','edit',`data-open="${m}"`);
+V['master-products']=()=>head('สินค้า','รหัส ชื่อ หน่วย และราคาแยกตามช่องทาง',ob('เพิ่มสินค้า','pri','plus','m-product'))+banner('โครงสร้างราคาแต่ละช่องทาง ค่าส่ง และราคาขายส่ง รอยืนยัน (Q2, Q5, Q18)','amber','info')+
+ card('',dv([['รหัส'],['ชื่อสินค้า'],['หน่วย'],['หน้าร้าน','r'],['Shopee','r'],['TikTok','r'],['Lazada','r'],['Line/FB','r'],['ใช้งาน','c'],['','r']],[
+  {c:['<b class="mono">PRD-001</b>','เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','แพ็ค','170','190','189','195','190',sw(1),actE('m-product')]},
+  {c:['<b class="mono">PRD-002</b>','น้ำจิ้ม 400g','ขวด','115','125','125','129','125',sw(1),actE('m-product')]},
+ ],{m:{t:1,s:0,l:[2,3,4,5,6,7],a:9}}));
+V['master-skumap']=()=>head('จับคู่ SKU','กฎแปลง SKU ของแต่ละ Platform เป็นรหัสสินค้าในระบบ',ob('เพิ่มกฎจับคู่','pri','plus','m-skumatch'))+
+ card('',dv([['สินค้าในระบบ'],['Platform'],['SKU ของ Platform'],['จำนวนต่อ 1 SKU','r'],['ใช้ล่าสุด'],['','r']],[
+  {c:['PRD-001 เต้าหู้ แพ็ค 10','Shopee','<span class="mono">TOFU-10</span>','1 แพ็ค','10:45',actE('m-skumatch')]},
+  {c:['PRD-001 เต้าหู้ แพ็ค 10','Shopee','<span class="mono">TOFU-10-X2</span>','2 แพ็ค','09:12',actE('m-skumatch')]},
+  {c:['PRD-001 เต้าหู้ แพ็ค 10','TikTok Shop','<span class="mono">1729-TOFU10</span>','1 แพ็ค','08:40',actE('m-skumatch')]},
+  {c:['PRD-001 เต้าหู้ แพ็ค 10','Lazada','<span class="mono">SHS-TF10</span>','1 แพ็ค','เมื่อวาน',actE('m-skumatch')]},
+  {c:['PRD-002 น้ำจิ้ม 400g','Shopee','<span class="mono">SAUCE-400</span>','1 ขวด','10:31',actE('m-skumatch')]},
+ ],{m:{t:2,s:0,l:[1,3],a:5}}));
+V['master-customers']=()=>head('ลูกค้า','ลูกค้าทุกช่องทาง · 1 คนมีได้หลายเบอร์ หลายที่อยู่ หลายชุดใบกำกับ',btn('เพิ่มลูกค้า','pri','plus','data-open="m-customer"'))+
+ card('',fbar('ค้นหาชื่อ, เบอร์โทร, เลขผู้เสียภาษี',[[['ทุกช่องทาง','Line','Facebook','Shopee','โทร'],'ทุกช่องทาง'],[['VAT และ NOVAT','VAT','NOVAT'],'VAT และ NOVAT']])+dv([['ชื่อลูกค้า'],['เบอร์หลัก'],['ช่องทาง'],['บิล'],['ที่อยู่','r'],['Order ล่าสุด'],['','r']],[
+  {c:['<b>ร้านเจ๊หมวย</b>','081-234-5678 <span class="muted sm">+1</span>','Line',B('NOVAT','grey'),'2','13 พ.ย.',sm('ดู','sec','eye','data-open="m-customer"')]},
+  {c:['<b>บจก. สยามฟู้ด</b>','081-555-0101','Facebook',B('VAT','blue'),'3','12 พ.ย.',sm('ดู','sec','eye','data-open="m-customer"')]},
+  {c:['<b>ครัวป้าศรี</b>','081-998-1122','โทร',B('VAT','blue'),'1','13 พ.ย.',sm('ดู','sec','eye','data-open="m-customer"')]},
+  {c:['<b>สมชาย ใจดี</b>','08x-xxx-4421','Shopee',B('NOVAT','grey'),'1','13 พ.ย.',sm('ดู','sec','eye','data-open="m-customer"')]},
+ ],{m:{t:0,b:3,s:1,l:[2,4,5],a:6}}));
+const simpleList=(title,sub,mid,cols,rows,m)=>head(title,sub,ob('เพิ่ม','pri','plus',mid))+card('',dv(cols,rows.map(c=>({c:[...c,actE(mid)]})),{m}));
+V['master-channels']=()=>simpleList('ช่องทางการขาย','รายการช่องทางที่ใช้รับ Order','m-simple',[['ช่องทาง'],['ประเภท'],['เชื่อม API'],['ต้องยืนยันรับเงิน'],['ใช้งาน','c'],['','r']],[['Shopee',B('Marketplace','blue'),B('Shopee API','green'),'ไม่ต้อง',sw(1)],['TikTok Shop',B('Marketplace','blue'),B('รอเชื่อมต่อ','grey'),'ไม่ต้อง',sw(1)],['Lazada',B('Marketplace','blue'),B('Lazada API','green'),'ไม่ต้อง',sw(1)],['Line',B('Manual','gold'),'—','ต้อง',sw(1)],['Facebook',B('Manual','gold'),'—','ต้อง',sw(1)],['หน้าร้าน',B('Manual','gold'),'—','ต้อง',sw(1)],['โทร',B('Manual','gold'),'—','ต้อง',sw(1)]],{t:0,b:1,l:[2,3],a:5});
+V['master-carriers']=()=>simpleList('ขนส่ง','รายการขนส่ง พื้นที่ API และรูปแบบใบปะหน้า','m-simple',[['ขนส่ง'],['พื้นที่'],['API'],['ใบปะหน้า Order Manual'],['ปิดงานส่งสำเร็จ'],['ใช้งาน','c'],['','r']],[['Inter Express','หาดใหญ่',B('เชื่อมแล้ว','green'),'ฟอร์มระบบ '+DRAFT(),'อัตโนมัติจาก API',sw(1)],['Nim Express','กรุงเทพฯ',B('เชื่อมแล้ว','green'),'ฟอร์มระบบ '+DRAFT(),'อัตโนมัติจาก API',sw(1)],['Fuze Express','กรุงเทพฯ',B('รอตั้งค่า','amber'),'ฟอร์มระบบ '+DRAFT(),'อัตโนมัติจาก API',sw(1)],['ส่งจากหน้าร้าน','—','—','ไม่ใช้','กดยืนยันเอง',sw(1)],['รถตู้/รถทัวร์','—','—','ฟอร์มระบบ','กดยืนยันเอง',sw(1)]],{t:0,s:1,l:[2,3,4],a:6});
+V['master-reasons']=()=>banner('รายการเหตุผลด้านล่างเป็นตัวอย่าง รอรายการจริงจากลูกค้า (Q39)','amber','info')+simpleList('เหตุผลยกเลิก','รายการที่ผู้ใช้ต้องเลือกเมื่อยกเลิก Order','m-reason',[['ลำดับ','c'],['เหตุผล'],['ต้องระบุหมายเหตุ'],['ใช้แล้ว (เดือนนี้)','r'],['ใช้งาน','c'],['','r']],[['1','ลูกค้าขอยกเลิก','ไม่ต้อง','12',sw(1)],['2','ชำระเงินไม่สำเร็จ','ไม่ต้อง','7',sw(1)],['3','ที่อยู่ไม่ถูกต้อง / ติดต่อไม่ได้','ไม่ต้อง','4',sw(1)],['4','สินค้าหมด / ผลิตไม่ทัน','ไม่ต้อง','3',sw(1)],['5','Order ซ้ำ','ไม่ต้อง','2',sw(1)],['6','ยกเลิกจาก Platform (อัตโนมัติ)','ไม่ต้อง','5',sw(1)],['7','อื่นๆ','ต้อง','1',sw(1)]],{t:1,s:0,l:[2,3],a:5});
+V['master-cutoff']=()=>head('เวลาตัดรอบ','กำหนดรอบส่งและเงื่อนไขหลังตัดรอบ',btn('บันทึก','pri','check','data-toast="บันทึกเวลาตัดรอบแล้ว"'))+
+ `<div class="cols side">${card('ตั้งค่ารอบ',`<div class="fgrid">${fld('เวลาตัดรอบ','12:00',{ic:'clock',req:1})}${fld('จำนวนรอบส่งต่อวัน','1 รอบ',{opts:['1 รอบ','2 รอบ']})}<div class="fld full"><span class="fl">วันที่ไม่ส่งสินค้า</span><div class="seg">${['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'].map(d=>`<button type="button" class="chip ${d==='อา.'?'on':''}" data-multi>${d}</button>`).join('')}</div></div>${fld('แก้ไข Order ได้ถึง','20 ชั่วโมงหลังตัดรอบ',{suf:'',hint:'ความหมายของเงื่อนไข 20 ชั่วโมงรอยืนยัน (Q9)'})}${fld('Order หลังตัดรอบ','เข้ารอบถัดไปอัตโนมัติ',{opts:['เข้ารอบถัดไปอัตโนมัติ','ถามผู้ใช้ทุกครั้ง']})}</div><hr><div class="card-h"><h3>วันหยุดพิเศษ</h3>${sm('เพิ่มวันหยุด','ghost','plus')}</div>${dv([['วันที่'],['ชื่อวันหยุด'],['']],[{c:['31 ธ.ค. 2569','วันสิ้นปี',sm('','sec','trash','aria-label="ลบ"')]},{c:['1 ม.ค. 2570','วันขึ้นปีใหม่',sm('','sec','trash','aria-label="ลบ"')]}],{m:{t:1,s:0}})}`)}${card('ตัวอย่างรอบ',`<div class="stack">${[['สั่ง จ. 13:00 – อ. 12:00','ส่งรอบ อ. 12:00'],['สั่ง อ. 12:01 – พ. 12:00','ส่งรอบ พ. 12:00'],['สั่ง ส. 12:01 – จ. 12:00','ส่งรอบ จ. 12:00 (ข้ามวันอาทิตย์)']].map(([a,b])=>`<div class="flat"><b>${a}</b><div class="muted sm">${b}</div></div>`).join('')}</div>`)}</div>`;
+V['master-company']=()=>head('ข้อมูลบริษัท','ใช้เป็นหัวเอกสารบิลและใบกำกับภาษี',btn('บันทึก','pri','check','data-toast="บันทึกข้อมูลบริษัทแล้ว"'))+
+ `<div class="cols side">${card('ข้อมูลผู้ขาย',`<div class="fgrid">${fld('ชื่อบริษัท','บริษัท สหัสา ฟู้ด จำกัด',{req:1})}${fld('เลขประจำตัวผู้เสียภาษี','0905561000123',{req:1})}${fld('สาขา','สำนักงานใหญ่',{opts:['สำนักงานใหญ่','สาขา 00001']})}${fld('โทรศัพท์','074-123-456')}${fld('ที่อยู่','99 ถ.คลองแงะ ต.พังลา อ.สะเดา จ.สงขลา 90170',{full:1,ta:1})}<div class="fld full"><span class="fl">โลโก้</span><div class="drop">${I('image',24)}<b>ลากไฟล์มาวาง หรือเลือกไฟล์</b><span class="muted sm">PNG หรือ SVG ขาวดำ เหมาะกับเครื่องพิมพ์ dot matrix</span></div></div>${fld('ข้อความท้ายเอกสาร','ขอบคุณที่อุดหนุน · สินค้าแช่เย็น 0–4°C',{full:1})}</div>`)}${card('ตัวอย่างหัวเอกสาร',`<div class="paper"><div class="row"><b style="font-size:16px">สหัสา</b><span class="grow"></span><span>ใบกำกับภาษี/ใบเสร็จรับเงิน</span></div><div>บริษัท สหัสา ฟู้ด จำกัด (สำนักงานใหญ่)<br>99 ถ.คลองแงะ ต.พังลา อ.สะเดา จ.สงขลา 90170<br>เลขผู้เสียภาษี 0905561000123 · โทร 074-123-456</div></div>`)}</div>`;
+V['master-import']=()=>head('นำเข้าข้อมูลเก่า','ย้ายข้อมูลจาก AppSheet เข้าระบบใหม่')+
+ card('',`<div class="row wrap" style="gap:8px 20px">${[['1','เลือกไฟล์',1],['2','จับคู่คอลัมน์',2],['3','ตรวจสอบ',0],['4','นำเข้า',0]].map(([n,l,s])=>`<div class="row" style="gap:8px"><span class="plat" style="width:28px;height:28px;border-radius:50%;font-size:13px;background:${s===2?'var(--red)':s===1?'var(--green)':'var(--muted)'};color:${s?'#fff':'var(--text2)'}">${s===1?I('check',14):n}</span><span style="font-weight:${s===2?600:400}">${l}</span></div>`).join(`<span class="muted">${I('cr',16)}</span>`)}</div>`)+
+ `<div class="cols side">${card('จับคู่คอลัมน์ · Orders_AppSheet.xlsx',dv([['คอลัมน์ใน AppSheet'],['ตัวอย่าง'],['ฟิลด์ในระบบ']],[['เลขที่','SHSC26L000011634'],['วันที่','13/11/2026'],['ชื่อลูกค้า','ร้านเจ๊หมวย'],['ช่องทาง','L'],['รายการ','เต้าหู้ 5'],['ยอดรวม','1,250']].map((r,i)=>({c:[`<b>${r[0]}</b>`,`<span class="mono">${r[1]}</span>`,`<div style="min-width:200px">${fld('',['เลข Order อ้างอิง (Order Ref)','วันส่ง','ลูกค้า','ช่องทางการขาย','รายการสินค้า','ยอดรวม'][i],{opts:['เลข Order อ้างอิง (Order Ref)','วันส่ง','ลูกค้า','ช่องทางการขาย','รายการสินค้า','ยอดรวม','ไม่นำเข้า']})}</div>`]})),{m:{t:0,s:1,l:[2]}}))}${card('ตั้งค่าการนำเข้า',`${fld('ช่วงข้อมูลย้อนหลัง','12 เดือน (พ.ย. 68 – พ.ย. 69)',{opts:['6 เดือน','12 เดือน (พ.ย. 68 – พ.ย. 69)','ทั้งหมด'],hint:'รอกำหนดช่วงเวลาย้อนหลังกับลูกค้า'})}${fld('รหัสช่องทาง H/K/L/M','L = Line',{opts:['L = Line','H = หน้าร้าน','K = ?','M = ?'],hint:'ความหมายตัวอักษรรอยืนยัน (Q32)'})}<div class="flat">${kv('แถวทั้งหมด','8,412')}${kv('ลูกค้าใหม่ที่จะสร้าง','1,236')}</div><div class="actions">${btn('ย้อนกลับ','sec')}${btn('ตรวจสอบข้อมูล','pri',null,'data-toast="กำลังตรวจสอบ 8,412 แถว"')}</div>`)}</div>`;
+
+/* ===== 9 รายการเคลื่อนไหว (draft) ===== */
+const draftBan=()=>banner('Module นี้เป็นร่างข้อเสนอ · รอยืนยันว่าต้องติดตามสต็อกหรือผลิตตาม Order อย่างเดียว (Q24) และต้องเก็บ Lot/วันหมดอายุไหม (Q25)','amber','info',DRAFT('ร่าง'));
+V['stock-onhand']=()=>draftBan()+head('สต็อกคงเหลือ','ยอดคงเหลือ จองโดย Order และพร้อมขาย',ob('ปรับยอดสต็อก','sec','edit','m-adjust'))+
+ `<div class="cols">${[['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','แพ็ค',260,192,68,80],['น้ำจิ้ม 400g','ขวด',410,74,336,100]].map(([n,u,h,r,a,min])=>card('',`<div class="row"><span class="plat" style="background:var(--gold-soft);color:var(--amber)">${I('box',22)}</span><div class="grow"><h3>${n}</h3><span class="muted sm">จุดสั่งผลิต ${min} ${u}</span></div>${a<min?B('ต่ำกว่าจุดสั่งผลิต','red'):B('ปกติ','green')}</div><div class="stats" style="grid-template-columns:repeat(3,1fr)">${[['คงเหลือ',h],['จองโดย Order',r],['พร้อมขาย',a]].map(([l,v])=>`<div><div class="muted sm">${l}</div><div class="stat-v" style="font-size:22px">${v}</div></div>`).join('')}</div>`)).join('')}</div>`+
+ card('ตาม Lot',dv([['สินค้า'],['Lot'],['ผลิตวันที่'],['หมดอายุ'],['คงเหลือ','r']],[{c:['เต้าหู้ แพ็ค 10','<span class="mono">L-261113-A</span>','13 พ.ย.','20 พ.ย.','180']},{cls:'hl',c:['เต้าหู้ แพ็ค 10','<span class="mono">L-261111-B</span>','11 พ.ย.','18 พ.ย. · เหลือ 5 วัน','80']},{c:['น้ำจิ้ม 400g','<span class="mono">S-261101</span>','1 พ.ย.','1 ก.พ. 70','410']}],{m:{t:1,s:0,l:[2,3,4]}}));
+V['stock-movein']=()=>draftBan()+head('รับเข้า / ปรับยอด','บันทึกรับเข้าจากการผลิต ปรับยอด หรือของเสีย')+
+ `<div class="cols side">${card('บันทึกรายการ',`${seg(['รับเข้าจากการผลิต','ปรับยอดเพิ่ม','ปรับยอดลด','ของเสีย/เคลม'])}<div class="fgrid">${fld('สินค้า','เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',{opts:['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','น้ำจิ้ม 400g'],req:1})}${fld('จำนวน','180',{suf:'แพ็ค',req:1})}${fld('Lot','L-261113-A')}${fld('วันหมดอายุ','20/11/2569',{ic:'calendar'})}${fld('หมายเหตุ','',{full:1,ta:1,ph:'เช่น ผลิตรอบเช้า'})}</div><div class="actions">${btn('บันทึกรายการ','pri','check','data-toast="บันทึกรับเข้า 180 แพ็คแล้ว"')}</div>`)}${card('ล่าสุดวันนี้',`<div class="stack">${[['รับเข้าจากการผลิต','+180 เต้าหู้','06:30 · โรงงาน01','green'],['ของเสีย/เคลม','-4 เต้าหู้','08:10 · พบเส้นผม (เคลม ORD-000099)','red'],['ปรับยอดลด','-2 น้ำจิ้ม','09:00 · นับสต็อก','amber']].map(([t,q,s,c])=>`<div class="flat row"><div class="grow"><b>${t}</b><div class="muted sm">${s}</div></div>${B(q,c)}</div>`).join('')}</div>`)}</div>`;
+V['stock-ledger']=()=>draftBan()+head('ประวัติการเคลื่อนไหว','รายการเข้า-ออกของสินค้า',btn('ส่งออก Excel','sec','download','data-toast="เตรียมไฟล์ Excel แล้ว"'))+
+ card('',fbar('ค้นหาเอกสารอ้างอิง',[[['ทุกสินค้า','เต้าหู้ แพ็ค 10','น้ำจิ้ม 400g'],'ทุกสินค้า'],[['ทุกประเภท','รับเข้า','ตัดจาก Order','ปรับยอด','ของเสีย'],'ทุกประเภท']])+dv([['วันเวลา'],['ประเภท'],['อ้างอิง'],['สินค้า'],['เข้า','r'],['ออก','r'],['คงเหลือ','r'],['ผู้บันทึก']],[{c:['13 พ.ย. 10:42',B('ตัดจาก Order','blue'),ord('ORD-000141'),'เต้าหู้ แพ็ค 10','','5','260','ระบบ']},{c:['13 พ.ย. 08:10',B('ของเสีย','red'),'<span class="mono">ADJ-0031</span>','เต้าหู้ แพ็ค 10','','4','265','โรงงาน01']},{c:['13 พ.ย. 06:30',B('รับเข้า','green'),'<span class="mono">L-261113-A</span>','เต้าหู้ แพ็ค 10','180','','269','โรงงาน01']},{c:['12 พ.ย. 16:00',B('ปรับยอด','amber'),'<span class="mono">ADJ-0030</span>','น้ำจิ้ม 400g','','2','410','Admin']}],{m:{t:2,b:1,s:0,l:[3,4,5,6]}}));
+
+/* ===== 10 ผู้ใช้และสิทธิ์ ===== */
+V['users-list']=()=>head('ผู้ใช้','เพิ่ม แก้ไข และปิดการใช้งานผู้ใช้',ob('เพิ่มผู้ใช้','pri','plus','m-user'))+
+ card('',fbar('ค้นหาชื่อหรืออีเมล',[[['ทุก Role','Admin','Owner','หัวหน้า','Sales','โรงงาน','บัญชี'],'ทุก Role']])+dv([['ชื่อ'],['อีเมล'],['Role'],['ใช้งานล่าสุด'],['สถานะ'],['','r']],[
+  {c:['<b>คุณเฉิน</b>','owner@sahasa.co.th',B('Owner','gold'),'วันนี้ 09:02',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>Admin</b>','admin@sahasa.co.th',B('Admin','red'),'ออนไลน์',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>Sales01</b>','sales01@sahasa.co.th',B('Sales','blue'),'วันนี้ 10:42',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>หัวหน้า Sales</b>','lead@sahasa.co.th',B('หัวหน้า','amber'),'เมื่อวาน',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>โรงงาน01</b>','factory01@sahasa.co.th',B('โรงงาน','grey'),'วันนี้ 08:10',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>บัญชี01</b>','acc01@sahasa.co.th',B('บัญชี','green'),'วันนี้ 09:30',B('ใช้งาน','green'),actE('m-user')]},
+  {c:['<b>Sales02</b>','sales02@sahasa.co.th',B('Sales','blue'),'30 ต.ค.',B('ปิดใช้งาน','grey'),actE('m-user')]},
+ ],{m:{t:0,b:2,s:1,l:[3,4],a:5}}));
+const ROLES=['Admin','Owner','หัวหน้า','Sales','โรงงาน','บัญชี'];
+const PERM=[['Order',[['ดู Order','order.view','111111'],['สร้าง Order','order.create','111100'],['แก้ไข Order','order.edit','111100'],['ยืนยัน Order','order.confirm','111100'],['ยกเลิก Order','order.cancel','111000'],['เพิ่ม Order หลังตัดรอบ','order.after_cutoff','111000'],['ยืนยันรับเงิน','payment.confirm','110101'],['เห็นยอดเงิน','order.amount','111101']]],['โรงงาน',[['รับ Order / พิมพ์เอกสาร','factory.accept','110010'],['บันทึกการจัดส่ง','factory.ship','110010']]],['บัญชี',[['ออกเอกสาร / ใบลดหนี้','acc.document','110001'],['กระทบยอด','acc.recon','110001']]],['ระบบ',[['ข้อมูลหลัก','master.manage','100000'],['ผู้ใช้และสิทธิ์','user.manage','100000'],['เชื่อมต่อ Platform','platform.manage','100000']]]];
+V['users-roles']=()=>head('Role และสิทธิ์','กำหนดสิทธิ์ต่อ Role · ชื่อสิทธิ์แสดงภาษาไทย พร้อมรหัสภาษาอังกฤษสำหรับทีมพัฒนา',btn('เพิ่ม Role','sec','plus','data-toast="เพิ่ม Role ใหม่"')+btn('บันทึก','pri','check','data-toast="บันทึกสิทธิ์แล้ว"'))+
+ banner('รายชื่อ Role และสิทธิ์ทั้งหมดเป็นร่าง รอยืนยัน (ข้อ 61, Q22, Q41) · ติ๊กเพื่อปรับได้ทันที','amber','info',DRAFT())+
+ card('',`<div class="tw"><table class="mx"><tr><th>สิทธิ์</th>${ROLES.map(r=>`<th>${r}</th>`).join('')}</tr>${PERM.map(([g,ps])=>`<tr class="grp"><td colspan="${ROLES.length+1}">${g}</td></tr>`+ps.map(([l,code,bits])=>`<tr><td>${l}<small class="mono">${code}</small></td>${[...bits].map((b,i)=>`<td><input type="checkbox" class="cb" aria-label="${l} · ${ROLES[i]}" ${b==='1'?'checked':''} ${i===0?'disabled':''}></td>`).join('')}</tr>`).join('')).join('')}</table></div><span class="hint">Admin มีทุกสิทธิ์และแก้ไขไม่ได้ · ตารางนี้เลื่อนแนวนอนได้บนมือถือ</span>`);
+V['users-audit']=()=>head('Audit log','ประวัติผู้แก้ไข/ยกเลิก เวลา ค่าก่อนและหลัง',btn('ส่งออก Excel','sec','download','data-toast="เตรียมไฟล์ Excel แล้ว"'))+
+ card('',fbar('ค้นหาเลขเอกสารหรือผู้ใช้',[[['ทุกการกระทำ','สร้าง','แก้ไข','ยืนยัน','ยกเลิก','เข้าสู่ระบบ'],'ทุกการกระทำ'],[['7 วันล่าสุด','วันนี้','30 วัน'],'7 วันล่าสุด']])+dv([['เวลา'],['ผู้ใช้'],['การกระทำ'],['เอกสาร'],['ฟิลด์'],['ค่าเดิม'],['ค่าใหม่']],[
+  {c:['13 พ.ย. 10:42','Sales01',B('แก้ไข','amber'),ord('ORD-000128'),'จำนวนเต้าหู้','<s class="muted">4</s>','<b>5</b>']},
+  {c:['13 พ.ย. 10:15','หัวหน้า Sales',B('เพิ่มหลังตัดรอบ','blue'),ord('ORD-000150'),'รอบส่ง','14 พ.ย. 12:00','<b>13 พ.ย. 12:00</b>']},
+  {c:['13 พ.ย. 09:58','Admin',B('ยกเลิก','red'),ord('ORD-000117'),'สถานะ','โรงงานรับแล้ว','<b>ยกเลิก · ลูกค้าขอยกเลิก</b>']},
+  {c:['13 พ.ย. 09:40','บัญชี01',B('ยืนยัน','green'),ord('ORD-000141'),'การรับเงิน','รอยืนยัน','<b>รับเงินแล้ว ฿1,259</b>']},
+  {c:['13 พ.ย. 09:12','Sales01',B('สร้าง','grey'),ord('ORD-000141'),'—','—','ช่องทาง Line']},
+ ],{m:{t:3,b:2,s:0,l:[1,4,5,6]}}));
+const nitem=(ic,tone,t,d,time,un,act)=>`<div class="nitem ${un?'unread':''}" data-t="${tone}"><span class="ico" style="background:var(--${tone==='sku'?'red':tone==='api'?'amber':tone==='pay'?'gold':'blue'}-soft);color:var(--${tone==='sku'?'red':tone==='api'?'amber':tone==='pay'?'amber':'blue'})">${I(ic,18)}</span><div class="grow"><div class="nt" style="font-weight:600">${t}</div><div class="muted sm">${d}</div><div class="muted sm">${time}</div></div>${act}</div>`;
+V['users-notif']=()=>head('ศูนย์แจ้งเตือน','รวมการแจ้งเตือนของระบบไว้ที่เดียว',btn('อ่านทั้งหมดแล้ว','sec','check','data-toast="ทำเครื่องหมายอ่านแล้วทั้งหมด"'))+
+ `<div class="cols side">${card('',tabs([['all','ทั้งหมด',6],['sku','SKU',2],['api','API error',2],['ord','Order แก้ไข/ยกเลิก',2],['pay','รับเงิน',1]])+`<div>${[
+  nitem('alert','sku','SKU จับคู่ไม่ได้ 2 รายการ','Shopee TOFU-10-PROMO · TikTok SAUCE400-NEW · กระทบ 6 Order','5 นาทีที่แล้ว',1,sm('จับคู่','sec',null,'data-go="platform-sku"')),
+  nitem('plug','api','API error: Lazada','ดึงออเดอร์ไม่สำเร็จ 10:45 · Access token หมดอายุ','10 นาทีที่แล้ว',1,sm('ดู Log','sec',null,'data-go="platform-log"')),
+  nitem('edit','ord','Order ถูกแก้ไขหลังโรงงานรับ','ORD-000128 · จำนวนเต้าหู้ 4 → 5 · Sales01','20 นาทีที่แล้ว',1,sm('ดู','sec',null,'data-open="m-flag"')),
+  nitem('x','ord','Order ถูกยกเลิกหลังโรงงานรับ','ORD-000117 · ลูกค้าขอยกเลิก · Admin','45 นาทีที่แล้ว',0,''),
+  nitem('receipt','pay','Order Manual รอยืนยันรับเงิน 4 รายการ','Line 3 · Facebook 1','1 ชม. ที่แล้ว',0,''),
+  nitem('refresh','api','API error: Inter Express','ดึงสถานะขนส่ง timeout · Re-sync สำเร็จแล้ว','2 ชม. ที่แล้ว',0,''),
+ ].join('')}</div>`,'','" data-tabscope="')}${card('ใครได้รับแจ้งเตือน',`<div class="tw"><table class="mx"><tr><th>ประเภท</th><th>Admin</th><th>โรงงาน</th><th>บัญชี</th></tr>${[['SKU จับคู่ไม่ได้','100'],['API error','100'],['แก้ไข/ยกเลิกหลังรับ','110'],['Order แทรกหลังตัดรอบ','110'],['รอยืนยันรับเงิน','101']].map(([l,b])=>`<tr><td>${l}</td>${[...b].map(x=>`<td>${sw(x==='1')}</td>`).join('')}</tr>`).join('')}</table></div>`)}</div>`;
+
+/* ---------- modals ---------- */
+const pick=(name,on,inner)=>`<label class="pick"><input type="radio" name="${name}" ${on?'checked':''}><span class="grow">${inner}</span></label>`;
+const M={
+'m-timeout':{t:'แจ้งเตือนเซสชัน',w:440,b:()=>`<div class="stack" style="align-items:center;text-align:center"><span class="circ" style="width:64px;height:64px;background:var(--gold-soft);color:var(--amber)">${I('clock',30)}</span><h2 style="font-size:20px">ใกล้หมดเวลาใช้งาน</h2><p class="muted">ไม่มีการใช้งานเป็นเวลานาน ระบบจะออกจากระบบอัตโนมัติใน</p><b class="num" style="font-size:36px;color:var(--red)">00:59</b></div>`,c:'ออกจากระบบ',cgo:'auth-timeout',f:'ใช้งานต่อ',toast:'ใช้งานต่อแล้ว'},
+'m-cust':{t:'เลือกลูกค้า',w:560,b:()=>`${fld('','081',{ic:'search'})}<span class="muted sm">พบ 3 รายการ</span><div class="stack" style="gap:8px">${[['ร้านเจ๊หมวย','081-234-5678','Line','ที่อยู่ 2 แห่ง · NOVAT',1],['ครัวป้าศรี','081-998-1122','โทร','ที่อยู่ 1 แห่ง · VAT',0],['บจก. สยามฟู้ด','081-555-0101','Facebook','ที่อยู่ 3 แห่ง · VAT',0]].map(([n,p,c,a,on])=>pick('cu',on,`<b>${n}</b> ${B(c,'grey')}<span class="muted sm" style="display:block">${p} · ${a}</span>`)).join('')}</div>${btn('สร้างลูกค้าใหม่','ghost','plus','data-open="m-newcust"')}`,f:'เลือกลูกค้านี้',toast:'เลือกร้านเจ๊หมวยแล้ว'},
+'m-newcust':{t:'สร้างลูกค้าใหม่',w:720,b:()=>`<h3>ข้อมูลลูกค้า</h3><div class="fgrid">${fld('ชื่อลูกค้า / ร้าน','',{req:1,ph:'เช่น ร้านเจ๊หมวย'})}${fld('ช่องทางหลัก','Line',{opts:['Line','Facebook','หน้าร้าน','โทร']})}${fld('เบอร์โทร','081-234-5678',{req:1,ic:'phone'})}${fld('เบอร์โทรเพิ่มเติม','',{ic:'phone',ph:'ไม่บังคับ'})}</div>${btn('เพิ่มเบอร์โทร','ghost','plus')}<hr><h3>การออกบิล</h3>${seg(['NOVAT','VAT'],1)}<div class="fgrid">${fld('ชื่อบริษัทในใบกำกับ','บจก. สยามฟู้ด',{req:1})}${fld('เลขประจำตัวผู้เสียภาษี','0105561234567',{req:1})}${fld('สาขา','สำนักงานใหญ่',{opts:['สำนักงานใหญ่','สาขา']})}${fld('อีเมลรับเอกสาร','',{ph:'acc@company.com'})}${fld('ที่อยู่ใบกำกับภาษี','',{ta:1,full:1,ph:'เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์'})}</div><hr><div class="row wrap"><h3 class="grow">ที่อยู่จัดส่ง</h3>${cbx('ใช้ที่อยู่เดียวกับใบกำกับ',false)}</div><div class="fgrid">${fld('ชื่อผู้รับ','',{req:1,ph:'ชื่อผู้รับสินค้า'})}${fld('เบอร์ผู้รับ','',{req:1,ph:'08x-xxx-xxxx'})}${fld('ที่อยู่','',{req:1,full:1,ph:'บ้านเลขที่ หมู่ ซอย ถนน'})}${fld('ตำบล / อำเภอ','',{ph:'พิมพ์เพื่อค้นหา',ic:'search'})}${fld('จังหวัด / รหัสไปรษณีย์','สงขลา 90110',{dis:1})}</div>`,f:'บันทึกและเลือกลูกค้า',toast:'สร้างลูกค้าใหม่แล้ว'},
+'m-addr':{t:'ที่อยู่จัดส่ง · ร้านเจ๊หมวย',w:560,b:()=>`<div class="stack" style="gap:8px">${pick('ad',1,`<b>เจ๊หมวย (หน้าร้าน)</b> ${B('ค่าเริ่มต้น','blue')}<span class="muted sm" style="display:block">99/9 ถ.ตัวอย่าง ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110 · 081-234-5678</span>`)}${pick('ad',0,`<b>คุณต้น (สาขา 2)</b><span class="muted sm" style="display:block">12 ถ.เพชรเกษม ต.คอหงส์ อ.หาดใหญ่ จ.สงขลา 90112 · 089-111-2233</span>`)}</div><div class="dashed"><b style="color:var(--red)" class="row">${I('plus',18)}เพิ่มที่อยู่ใหม่</b><div class="fgrid">${fld('ชื่อผู้รับ','',{ph:'ชื่อผู้รับ'})}${fld('เบอร์ผู้รับ','',{ph:'08x-xxx-xxxx'})}${fld('ที่อยู่','',{full:1,ph:'บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด'})}</div>${cbx('ตั้งเป็นที่อยู่ค่าเริ่มต้น',false)}</div>`,f:'ใช้ที่อยู่นี้',toast:'เปลี่ยนที่อยู่จัดส่งแล้ว'},
+'m-cancel':{t:'ยกเลิก Order',w:520,b:()=>`${banner('Order นี้โรงงานรับแล้ว ระบบจะแจ้งเตือนโรงงานทันทีเมื่อยกเลิก','red','alert')}<div class="flat row"><div class="grow">${ord('ORD-000141')}<div class="muted sm">ร้านเจ๊หมวย · Line · ฿1,250</div></div>${B('โรงงานรับแล้ว')}</div><span class="fl">เหตุผลการยกเลิก <b class="req">*</b></span><div class="stack" style="gap:8px">${['ลูกค้าขอยกเลิก','สินค้าหมด / ผลิตไม่ทัน','ที่อยู่ไม่ถูกต้อง / ติดต่อไม่ได้','ชำระเงินไม่สำเร็จ','Order ซ้ำ','อื่นๆ'].map((r,i)=>radio('cr',r,i===0)).join('')}</div>${fld('หมายเหตุเพิ่มเติม','',{ta:1,ph:'ระบุรายละเอียด (ถ้ามี)'})}<span class="hint">ระบบจะไม่ลบข้อมูล Order และจะออกใบลดหนี้หากออกบิลไปแล้ว</span>`,f:'ยืนยันการยกเลิก',toast:'ยกเลิก ORD-000141 แล้ว · แจ้งเตือนโรงงานแล้ว'},
+'m-pay':{t:'ยืนยันการรับเงิน · ORD-000141',w:580,b:()=>`<div class="flat row"><span class="muted grow">ยอดที่ต้องชำระ</span><b style="font-size:24px">฿1,250</b></div><span class="fl">วิธีชำระ</span>${seg(['โอน','เงินสด','ชำระผ่าน Platform'])}${fld('บัญชีที่รับเงิน','กสิกร xxx-x-x1234 (บัญชี NOVAT)',{opts:['กสิกร xxx-x-x1234 (บัญชี NOVAT)','ไทยพาณิชย์ xxx-x-x5678 (บัญชี VAT)'],hint:'รอยืนยันรายชื่อบัญชีรับเงิน (Q13)'})}<span class="fl">สลิปการโอน (แนบได้ไม่จำกัด)</span>${thumbs(2)}<div class="fgrid">${fld('ยอดที่ได้รับ','1,259',{suf:'บาท'})}${fld('วันเวลาที่รับเงิน','13/11/2569 09:40',{ic:'calendar'})}</div>${banner('ยอดรับเกิน ฿9 · ระบบบันทึกเป็นส่วนต่าง (วิธีจัดการรอยืนยัน Q15)','amber','info')}`,f:'ยืนยันรับเงิน',k:'gold',ic:'check',toast:'ยืนยันรับเงินแล้ว'},
+'m-bulk':{t:'ยืนยัน 2 Order',w:520,b:()=>`<div class="stack" style="gap:8px">${[['ORD-000142','Shopee · สมชาย ใจดี · ฿380',B('ผ่าน Platform','grey')],['ORD-000141','Line · ร้านเจ๊หมวย · ฿1,250',B('รอยืนยันรับเงิน','gold')]].map(([o,s,b])=>`<div class="flat row"><div class="grow">${ord(o)}<div class="muted sm">${s}</div></div>${b}</div>`).join('')}</div>${banner('ORD-000141 เป็น Order Manual ที่ยังไม่ยืนยันรับเงิน · ต้องยืนยันรับเงินก่อนหรือไม่ รอยืนยัน','amber','alert',DRAFT())}${banner('Order ที่ยืนยันแล้วจะเข้าคิวโรงงานรอบ 13 พ.ย. 12:00','blue','info')}`,f:'ยืนยัน 2 Order',ic:'check',toast:'ยืนยัน 2 Order แล้ว · เข้าคิวโรงงาน'},
+'m-cutoff':{t:'เพิ่ม Order หลังตัดรอบ',w:520,b:()=>`${banner('รอบ 13 พ.ย. 12:00 ตัดรอบไปแล้วเมื่อ 20 นาทีที่แล้ว','amber','clock')}<div class="stack" style="gap:8px">${pick('co',1,`<b>เพิ่มเข้ารอบวันนี้ (13 พ.ย.)</b><span class="muted sm" style="display:block">เฉพาะหัวหน้า/Admin · ระบบแจ้งเตือนโรงงานและอัปเดตยอดผลิต</span>`)}${pick('co',0,`<b>ส่งรอบถัดไป (14 พ.ย. 12:00)</b><span class="muted sm" style="display:block">ไม่กระทบรอบที่ตัดแล้ว</span>`)}</div>${fld('เหตุผล','',{ta:1,req:1,ph:'เช่น ลูกค้าประจำขอด่วน'})}<span class="hint">Role "หัวหน้า" รอยืนยัน (Q41)</span>`,f:'ยืนยัน',toast:'เพิ่มเข้ารอบวันนี้แล้ว · แจ้งเตือนโรงงานแล้ว'},
+'m-accept':{t:'รับ Order 3 รายการ',w:520,b:()=>`<div class="stack">${[['ORD-000142','Shopee · สมชาย ใจดี','Inter Express'],['ORD-000141','Line · ร้านเจ๊หมวย','Nim Express'],['ORD-000150','โทร · ครัวป้าศรี · แทรกหลังตัดรอบ','Inter Express']].map(([o,s,c])=>`<div class="flat row"><div class="grow">${ord(o)}<div class="muted sm">${s}</div></div><span class="sm">${c}</span></div>`).join('')}</div>${banner('สถานะจะเปลี่ยนเป็น "โรงงานรับแล้ว" · หลังจากนี้ถ้า Sales แก้ไขหรือยกเลิก ระบบจะแจ้งเตือนโรงงาน','blue','info')}`,f:'ยืนยันรับ Order',k:'pri',toast:'รับ Order 3 รายการแล้ว'},
+'m-flag':{t:'Order ถูกแก้ไขหลังโรงงานรับ',w:520,b:()=>`<div class="flat">${ord('ORD-000128')} <span class="muted sm">· Facebook · คุณนิด · Inter Express</span></div>${dv([['ฟิลด์'],['เดิม'],['ใหม่']],[{c:['เต้าหู้ แพ็ค 10','4','<b>5</b>']},{c:['ยอดรวม','฿760','<b>฿950</b>']}],{m:{t:0,l:[1,2]}})}<span class="muted sm">แก้ไขโดย Sales01 · 13 พ.ย. 10:42 · ภายในเวลาที่อนุญาต</span>${banner('ยอดผลิตรอบนี้ปรับเพิ่ม +1 แพ็คแล้ว · กรุณาพิมพ์ใบจัดสินค้าใหม่','amber','printer')}`,f:'รับทราบ',k:'pri',toast:'รับทราบการแก้ไขแล้ว'},
+'m-printprev':{t:'ตัวอย่างก่อนพิมพ์',w:860,b:()=>`<div class="cols side" style="grid-template-columns:minmax(0,1fr) 240px"><div class="paper"><div class="ptitle">ใบจัดสินค้า</div><div class="row"><span>รอบ 13 พ.ย. 2569 · 12:00</span><span class="grow"></span><b class="mono">ORD-000141</b></div><div>ลูกค้า: ร้านเจ๊หมวย · 081-234-5678<br>ขนส่ง: Nim Express (กทม.)</div><table><tr><th style="text-align:left">สินค้า</th><th>จำนวน</th><th>จัดแล้ว</th></tr><tr><td>เต้าหู้คลองแงะ แพ็ค 10 ชิ้น</td><td class="c">5</td><td class="c">☐</td></tr><tr><td>น้ำจิ้ม 400g</td><td class="c">2</td><td class="c">☐</td></tr></table><div class="row"><span>ผู้จัด ..................</span><span class="grow"></span><span>ผู้ตรวจ ..................</span></div><div class="muted sm" style="text-align:center">หน้า 2 จาก 3</div></div><div class="stack">${fld('เอกสาร','ใบจัดสินค้า',{opts:['ใบจัดสินค้า','ใบปะหน้า','ใบสรุปยอดผลิต']})}${fld('ขนาดกระดาษ','A5',{opts:['A4','A5','Label 100×150 มม.']})}${fld('จำนวนสำเนา','1')}${cbx('รวมหลาย Order ต่อหน้า',false)}<div class="flat">${kv('Order','3 รายการ')}${kv('จำนวนหน้า','3')}</div></div></div>`,f:'สั่งพิมพ์ 3 รายการ',k:'pri',ic:'printer',toast:'ส่งไปเครื่องพิมพ์แล้ว'},
+'m-track':{t:'บันทึกเลข Tracking',w:520,b:()=>`<div class="flat row"><div class="grow">${ord('ORD-000142')}<div class="muted sm">Shopee · สมชาย ใจดี</div></div>${B('โรงงานรับแล้ว')}</div><div class="fgrid">${fld('ขนส่ง','Inter Express',{opts:['Inter Express','Nim Express','Fuze Express','รถตู้/รถทัวร์','ส่งจากหน้าร้าน']})}${fld('วันที่ส่ง','13/11/2569',{ic:'calendar'})}${fld('เลข Tracking','IE66113000',{req:1,full:1,hint:'หรือกดดึงจาก API ขนส่ง'})}</div>${btn('ดึงเลข Tracking จาก API ขนส่ง','sec','refresh','data-toast="ดึงเลข Tracking สำเร็จ"')}${banner('เมื่อบันทึก ระบบจะเปลี่ยนสถานะเป็น "จัดส่งแล้ว" และส่งเลข Tracking กลับ Shopee','blue','info')}`,f:'บันทึก',k:'pri',toast:'บันทึก Tracking และ sync กลับ Shopee แล้ว'},
+'m-delivered':{t:'ยืนยันจัดส่งสำเร็จ',w:520,b:()=>`<div class="flat row"><div class="grow">${ord('ORD-000137')}<div class="muted sm">รถตู้/รถทัวร์ · ลูกค้าหน้าร้าน</div></div></div><span class="muted sm">ใช้กับรถตู้/รถทัวร์ และส่งจากหน้าร้าน · ขนส่งอื่นปิดงานอัตโนมัติจาก Platform/API</span><div class="fgrid">${fld('ผู้รับสินค้า','',{ph:'ชื่อผู้รับ'})}${fld('วันเวลาที่ส่งถึง','13/11/2569 15:30',{ic:'calendar'})}</div><span class="fl">หลักฐานการส่ง (ถ้ามี)</span>${thumbs(1)}`,f:'ยืนยันส่งสำเร็จ',k:'pri',ic:'check',toast:'ปิด Order เป็นจัดส่งสำเร็จแล้ว'},
+'m-short':{t:'บันทึกส่งไม่ครบ',w:600,b:()=>`${banner('ข้อ 26 ยังไม่ Sign off · ส่วนที่เหลือจะส่งรอบหน้าหรือคืนเงิน รอยืนยัน (Q10)','amber','info',DRAFT('ร่าง'))}<div class="flat">${ord('ORD-000126')} <span class="muted sm">· ครัวป้าศรี · Nim Express</span></div>${dv([['สินค้า'],['สั่ง','r'],['ส่งจริง','r'],['ขาด','r']],[{c:['เต้าหู้ แพ็ค 10','6',`<div style="width:90px;margin-left:auto">${fld('','4')}</div>`,'<b style="color:var(--red)">2</b>']},{c:['น้ำจิ้ม 400g','2',`<div style="width:90px;margin-left:auto">${fld('','2')}</div>`,'0']}],{m:{t:0,l:[1,2,3]}})}<span class="fl">ส่วนที่ขาด</span><div class="stack" style="gap:8px">${radio('short','ส่งในรอบถัดไป (สร้าง Order ส่งเพิ่มอัตโนมัติ)',1)}${radio('short','คืนเงินส่วนที่ขาด (ออกใบลดหนี้)',0)}${radio('short','ยังไม่ตัดสินใจ · แจ้งหัวหน้า',0)}</div>${fld('สาเหตุ','',{ta:1,ph:'เช่น ผลิตไม่ทัน สินค้าเสียหาย'})}`,f:'บันทึก',k:'pri',toast:'บันทึกส่งไม่ครบแล้ว'},
+'m-export':{t:'ส่งออกข้อมูลบัญชี',w:520,b:()=>`${fld('ช่วงวันที่','1–13 พ.ย. 2569',{ic:'calendar'})}<span class="fl">รูปแบบไฟล์ (รอยืนยันโปรแกรมบัญชี Q21)</span>${seg(['Express','FlowAccount','PEAK','CSV ทั่วไป'],3)}<div class="flat">${kv('รายการที่ส่งออก','18 รายการ')}${kv('ยอดรวม','฿24,380.00')}</div>${cbx('ทำเครื่องหมายว่า "ส่งแล้ว" หลังส่งออก',true)}`,f:'ส่งออก',k:'pri',ic:'download',toast:'ส่งออก 18 รายการแล้ว'},
+'m-issue':{t:'ออกเอกสาร',w:600,b:()=>`<div class="fgrid">${fld('ประเภทเอกสาร','ใบกำกับภาษีเต็มรูป',{opts:['ใบกำกับภาษีเต็มรูป','ใบกำกับภาษีอย่างย่อ','ใบเสร็จรับเงิน'],hint:'เต็มรูป/อย่างย่อ รอยืนยัน (Q17)'})}${fld('วันที่เอกสาร','13/11/2569',{ic:'calendar'})}</div><span class="fl">Order ที่พร้อมออกเอกสาร</span><div class="stack" style="gap:8px">${[['ORD-000139','บจก. สยามฟู้ด · VAT','฿570.00',1],['ORD-000135','บจก. สยามฟู้ด · VAT','฿1,900.00',1],['ORD-000132','คุณนิด · VAT','฿380.00',0]].map(([o,s,a,on])=>`<div class="flat row">${cbx('',on)}<div class="grow">${ord(o)}<div class="muted sm">${s}</div></div><b class="num">${a}</b></div>`).join('')}</div><div class="flat">${kv('เลขที่ถัดไป','<span class="mono">INV-2611-0043, 0044</span>')}</div>`,f:'ออกเอกสาร 2 ฉบับ',k:'pri',toast:'ออกเอกสาร 2 ฉบับแล้ว'},
+'m-invoice':{t:'ตัวอย่างใบกำกับภาษี · INV-2611-0042',w:900,b:()=>`<div class="cols side" style="grid-template-columns:minmax(0,1fr) 220px"><div class="paper inv mono"><div class="row"><b>บริษัท สหัสา ฟู้ด จำกัด (สำนักงานใหญ่)</b><span class="grow"></span><b>ต้นฉบับ</b></div><div>99 ถ.คลองแงะ ต.พังลา อ.สะเดา จ.สงขลา 90170 · เลขผู้เสียภาษี 0905561000123</div><div class="ptitle">ใบกำกับภาษี / ใบเสร็จรับเงิน</div><div class="row"><div class="grow">ลูกค้า: บจก. สยามฟู้ด (สำนักงานใหญ่)<br>เลขผู้เสียภาษี: 0105561234567<br>ที่อยู่: 12 ถ.เพชรเกษม หาดใหญ่ สงขลา</div><div>เลขที่: INV-2611-0042<br>วันที่: 12/11/2569<br>อ้างอิง: ORD-000130</div></div><table><tr><th style="text-align:left">รายการ</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>จำนวนเงิน</th></tr><tr><td>เต้าหู้คลองแงะ แพ็ค 10 ชิ้น</td><td class="r">10</td><td class="r">190.00</td><td class="r">1,900.00</td></tr><tr><td>น้ำจิ้ม 400g</td><td class="r">6</td><td class="r">125.00</td><td class="r">750.00</td></tr><tr><td>ค่าขนส่ง</td><td class="r">1</td><td class="r">200.00</td><td class="r">200.00</td></tr></table><div style="margin-left:auto;width:220px">${kv('มูลค่าสินค้า','2,663.55')}${kv('ภาษีมูลค่าเพิ่ม 7%','186.45')}${kv('รวมทั้งสิ้น','2,850.00')}</div><div>(สองพันแปดร้อยห้าสิบบาทถ้วน)</div><div class="row" style="margin-top:auto"><span>ผู้รับเงิน ..................</span><span class="grow"></span><span>ผู้รับสินค้า ..................</span></div></div><div class="stack">${fld('กระดาษ','9×11 นิ้ว (Dot matrix)',{opts:['9×11 นิ้ว (Dot matrix)','A4']})}${fld('ชุดที่พิมพ์','ต้นฉบับ + สำเนา',{opts:['ต้นฉบับ + สำเนา','ต้นฉบับ','สำเนา']})}<span class="hint">ราคารวม VAT หรือบวก VAT เพิ่ม รอยืนยัน (Q18)</span>${btn('ยกเลิกเอกสารนี้','dang','x','data-open="m-credit"')}</div></div>`,f:'พิมพ์',k:'pri',ic:'printer',toast:'ส่งไปเครื่องพิมพ์ dot matrix แล้ว'},
+'m-credit':{t:'สร้างใบลดหนี้',w:620,b:()=>`${fld('อ้างอิงบิลเดิม','INV-2611-0040 · ร้านเจ๊หมวย · ฿1,250.00',{opts:['INV-2611-0040 · ร้านเจ๊หมวย · ฿1,250.00','INV-2611-0042 · บจก. สยามฟู้ด · ฿2,850.00'],req:1})}<span class="fl">เหตุผล</span><div class="stack" style="gap:8px">${radio('cn','ยกเลิก Order ทั้งหมด',1)}${radio('cn','คืนสินค้าบางส่วน',0)}${radio('cn','ลดราคา / ส่วนลดภายหลัง',0)}</div>${dv([['สินค้า'],['จำนวนเดิม','r'],['จำนวนที่ลดหนี้','r'],['มูลค่า','r']],[{c:['เต้าหู้ แพ็ค 10','5','5','950.00']},{c:['น้ำจิ้ม 400g','2','2','250.00']},{c:['ค่าขนส่ง','1','1','50.00']}],{m:{t:0,l:[1,2,3]}})}<div class="flat">${kv('มูลค่าตามบิลเดิม','1,250.00')}${kv('มูลค่าที่ถูกต้อง','0.00')}${kv('ผลต่าง (ลดหนี้)','<b>1,250.00</b>')}${kv('เลขที่ถัดไป','<span class="mono">CN-2611-0004</span>')}</div>`,f:'ออกใบลดหนี้',k:'pri',toast:'ออกใบลดหนี้ CN-2611-0004 แล้ว'},
+'m-settle':{t:'อัปโหลดไฟล์ยอดโอน',w:520,b:()=>`${fld('Platform','Shopee',{opts:['Shopee','Lazada','TikTok Shop']})}<div class="drop">${I('upload',26)}<b>ลากไฟล์รายงานรายรับมาวาง</b><span class="muted sm">Shopee Income Report (.xlsx) · รองรับหลายไฟล์</span>${btn('เลือกไฟล์','sec')}</div><span class="hint">ถ้าเชื่อม API แล้ว ระบบดึงยอดโอนให้อัตโนมัติทุกวัน</span>`,f:'อัปโหลดและกระทบยอด',k:'pri',toast:'กระทบยอด 412 รายการแล้ว · ไม่ตรง 3'},
+'m-reconrow':{t:'ตรวจสอบส่วนต่าง · ORD-000101',w:520,b:()=>`<div class="flat">${kv('ยอด Order','380.00')}${kv('ค่าธรรมเนียม (ตามสัญญา 6%)','-22.80')}${kv('ค่าส่ง','-40.00')}${kv('ควรได้รับ','317.20')}${kv('Platform โอนจริง','275.00')}${kv('ส่วนต่าง','<b style="color:var(--red)">-42.20</b>')}</div>${banner('Platform หักค่าส่งเพิ่ม 42.20 (Shipping fee adjustment)','amber','info')}<span class="fl">การจัดการ</span><div class="stack" style="gap:8px">${radio('rr','ยอมรับส่วนต่าง (บันทึกเป็นค่าใช้จ่าย)',1)}${radio('rr','โต้แย้งกับ Platform',0)}</div>${fld('หมายเหตุ','',{ta:1,ph:'บันทึกเพิ่มเติม'})}`,f:'บันทึก',k:'pri',toast:'บันทึกผลการตรวจสอบแล้ว'},
+'m-api':{t:'ตั้งค่า API · Shopee',w:600,b:()=>`<div class="fgrid">${fld('Platform','Shopee',{opts:['Shopee','Lazada','TikTok Shop','Inter Express','Nim Express','Fuze Express']})}${fld('ชื่อร้าน','khlongngaetofu')}${fld('Shop ID','229381145')}${fld('Partner ID','2004512')}${fld('Partner Key','••••••••••••••••',{full:1,ic:'key',type:'password'})}</div><span class="fl">วิธีดึง Order (รอยืนยัน Q37)</span>${seg(['Webhook','ตั้งเวลา Pull','ทั้งสองแบบ'],2)}<div class="fgrid">${fld('ความถี่ Pull','ทุก 10 นาที',{opts:['ทุก 5 นาที','ทุก 10 นาที','ทุก 15 นาที']})}<div class="fld"><span class="fl">ส่งเลข Tracking และสถานะกลับ</span><div class="row" style="height:40px">${sw(1)}<span>เปิด</span></div></div></div>${btn('ทดสอบการเชื่อมต่อ','sec','refresh','data-toast="เชื่อมต่อสำเร็จ · พบ Order ใหม่ 2 รายการ"')}`,f:'บันทึก',k:'pri',toast:'บันทึกการตั้งค่า Shopee แล้ว'},
+'m-resync':{t:'Re-sync ช่วงเวลา',w:480,b:()=>`${fld('Platform','Lazada',{opts:['Lazada','Shopee','TikTok Shop','ทุก Platform']})}<div class="fgrid">${fld('ตั้งแต่','13/11/2569 09:00',{ic:'calendar'})}${fld('ถึง','13/11/2569 11:00',{ic:'calendar'})}</div>${banner('ระบบจะไม่สร้าง Order ซ้ำ (ตรวจด้วย Platform + Platform Order No.)','blue','info')}`,f:'เริ่ม Re-sync',k:'pri',ic:'refresh',toast:'เริ่ม Re-sync แล้ว'},
+'m-skumatch':{t:'จับคู่ SKU',w:560,b:()=>`<div class="flat">${kv('Platform','Shopee')}${kv('SKU','<span class="mono">TOFU-10-PROMO</span>')}${kv('ชื่อใน Platform','เต้าหู้คลองแงะ 10 ชิ้น (โปรแพ็คคู่)')}</div><span class="fl">สินค้าในระบบ</span><div class="stack" style="gap:8px">${radio('sk','PRD-001 เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',1)}${radio('sk','PRD-002 น้ำจิ้ม 400g',0)}</div>${fld('จำนวนต่อ 1 SKU','2',{suf:'แพ็ค',hint:'เช่น โปรแพ็คคู่ 1 SKU = 2 แพ็ค'})}${cbx('บันทึกเป็นกฎจับคู่ถาวร (ข้อมูลหลัก › จับคู่ SKU)',true)}${banner('Order ที่ติด flag 4 รายการจะเข้าคิวโรงงานหลังบันทึก','green','check')}`,f:'บันทึกการจับคู่',k:'pri',toast:'จับคู่ SKU แล้ว · ปลด flag 4 Order'},
+'m-product':{t:'แก้ไขสินค้า · PRD-001',w:680,b:()=>`<div class="fgrid">${fld('รหัสสินค้า','PRD-001',{req:1})}${fld('หน่วย','แพ็ค',{opts:['แพ็ค','ขวด','กล่อง']})}${fld('ชื่อสินค้า','เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',{req:1,full:1})}</div><span class="fl">ราคาแยกตามช่องทาง</span>${dv([['ช่องทาง'],['ราคาขาย (บาท)'],['ค่าส่ง (บาท)']],['หน้าร้าน','Shopee','TikTok','Lazada','Line','Facebook','โทร'].map((c,i)=>({c:[c,`<div style="min-width:110px">${fld('',[170,190,189,195,190,190,190][i]+'')}</div>`,`<div style="min-width:110px">${fld('',i?'50':'0')}</div>`]})),{m:{t:0,l:[1,2]}})}<span class="hint">ราคาขายส่ง/ราคาพิเศษรายลูกค้า รอยืนยัน (Q5)</span><div class="row">${sw(1)}<span>เปิดขาย</span></div>`,f:'บันทึก',k:'pri',toast:'บันทึกสินค้าแล้ว'},
+'m-customer':{t:'บจก. สยามฟู้ด',w:760,b:()=>`<div class="row wrap">${B('VAT','blue')}${B('Facebook','grey')}<span class="muted sm">ลูกค้าตั้งแต่ ม.ค. 2569 · 38 Order · ฿52,400</span></div><div class="cols"><div class="stack"><div class="card-h"><h3>เบอร์โทร</h3>${sm('เพิ่ม','ghost','plus')}</div>${['081-555-0101 · หลัก','02-111-2222 · ฝ่ายจัดซื้อ'].map(x=>`<div class="flat row">${I('phone',16)}<span class="grow">${x}</span>${I('edit',16)}</div>`).join('')}<div class="card-h"><h3>ข้อมูลใบกำกับภาษี</h3>${sm('เพิ่ม','ghost','plus')}</div>${['บจก. สยามฟู้ด (สำนักงานใหญ่) · 0105561234567','บจก. สยามฟู้ด (สาขา 00002) · 0105561234567'].map((x,i)=>`<div class="flat row"><span class="grow sm">${x}</span>${i?'':B('ค่าเริ่มต้น','blue')}</div>`).join('')}</div><div class="stack"><div class="card-h"><h3>ที่อยู่จัดส่ง</h3>${sm('เพิ่ม','ghost','plus')}</div>${['12 ถ.เพชรเกษม ต.คอหงส์ อ.หาดใหญ่ จ.สงขลา 90112','88 ถ.นิพัทธ์อุทิศ 3 อ.หาดใหญ่ จ.สงขลา 90110','45 ซ.สุขุมวิท 22 คลองเตย กรุงเทพฯ 10110'].map((x,i)=>`<div class="flat row">${I('pin',16)}<span class="grow sm">${x}</span>${i?'':B('ค่าเริ่มต้น','blue')}</div>`).join('')}</div></div>`,f:'แก้ไขข้อมูล',k:'pri',ic:'edit',toast:'เปิดโหมดแก้ไข'},
+'m-simple':{t:'เพิ่ม / แก้ไขรายการ',w:480,b:()=>`${fld('ชื่อ','',{req:1,ph:'เช่น LINE MyShop'})}${fld('ประเภท','Manual',{opts:['Manual','Marketplace']})}<div class="row">${sw(1)}<span>ใช้งาน</span></div>`,f:'บันทึก',k:'pri',toast:'บันทึกแล้ว'},
+'m-reason':{t:'เพิ่มเหตุผลยกเลิก',w:480,b:()=>`${fld('เหตุผล','',{req:1,ph:'เช่น ลูกค้าเปลี่ยนใจ'})}${cbx('ต้องระบุหมายเหตุเพิ่มเติม',false)}<div class="row">${sw(1)}<span>ใช้งาน</span></div>`,f:'บันทึก',k:'pri',toast:'เพิ่มเหตุผลแล้ว'},
+'m-adjust':{t:'ปรับยอดสต็อก',w:480,b:()=>`${seg(['ปรับเพิ่ม','ปรับลด','ของเสีย/เคลม'],1)}${fld('สินค้า','เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',{opts:['เต้าหู้คลองแงะ แพ็ค 10 ชิ้น','น้ำจิ้ม 400g']})}<div class="fgrid">${fld('คงเหลือในระบบ','260',{dis:1})}${fld('นับได้จริง','258')}</div>${fld('เหตุผล','',{ta:1,ph:'เช่น นับสต็อกประจำวัน'})}`,f:'บันทึก',k:'pri',toast:'ปรับยอดสต็อกแล้ว'},
+'m-user':{t:'เพิ่มผู้ใช้',w:520,b:()=>`<div class="fgrid">${fld('ชื่อที่แสดง','',{req:1,ph:'เช่น Sales03'})}${fld('อีเมล','',{req:1,ph:'name@sahasa.co.th',ic:'user'})}${fld('Role','Sales',{opts:ROLES,full:1})}</div>${cbx('ส่งอีเมลให้ผู้ใช้ตั้งรหัสผ่านเอง',true)}<div class="row">${sw(1)}<span>เปิดใช้งาน</span></div>`,f:'บันทึก',k:'pri',toast:'เพิ่มผู้ใช้แล้ว · ส่งอีเมลตั้งรหัสผ่าน'},
+};
+
+/* ---------- render ---------- */
+const $=s=>document.querySelector(s);
+let cur='map';
+function parse(){const h=(location.hash||'').slice(1);return V[h]?h:'map';}
+const VIEWMOD={'auth-session':'dashboard'};
+const EXTRA={'order-detail':['list','ORD-000141'],'order-edit':['list','แก้ไข ORD-000141']};
+const ROLEV={'dashboard-factory':[['map','dashboard','order','factory','users'],'โรงงาน'],'dashboard-acc':[['map','dashboard','order','acc','report','users'],'บัญชี']};
+const navT=m=>m.subs?m.id+'-'+m.subs[0][0]:m.id;
+function modOf(key){const id=VIEWMOD[key];return MODS.find(m=>id?m.id===id:(key===m.id||key.startsWith(m.id+'-')));}
+function navHTML(mod,subKey,role){return MODS.filter(m=>!m.hideNav&&(!role||role[0].includes(m.id))).map(m=>{const act=m===mod;const open=act&&m.subs&&!m.hideSubs;
+  return `<button type="button" class="ni ${act?'on':''} ${act&&!open?'solo':''}" data-go="${navT(m)}">${I(m.i,20)}<span class="lbl">${m.n}</span>${m.draft?'<span class="tag">ร่าง</span>':''}${m.subs&&!m.hideSubs?I(open?'cu':'cd',16):''}</button>${open?`<div class="subs">${m.subs.map(([k,l])=>`<button type="button" class="si ${subKey===k?'on':''}" data-go="${m.id}-${k}"><i></i>${l}</button>`).join('')}</div>`:''}`;}).join('');}
+let RS={};
+function render(){
+  UID=0;
+  const isAuth=cur.startsWith('auth-')&&!VIEWMOD[cur];
+  $('#app').hidden=isAuth;$('#auth').hidden=!isAuth;
+  const sc=document.body.classList.contains('force')?(isAuth?$('#auth'):$('#app')):window;
+  if(isAuth){$('#auth').innerHTML=V[cur]();sc.scrollTo(0,0);return;}
+  const mod=modOf(cur);const view=cur==='auth-session'?'dashboard-admin':cur;const role=ROLEV[view];
+  let subKey=null,title=null;
+  if(mod&&mod.subs&&!mod.hideSubs){const ex=EXTRA[cur];if(ex){subKey=ex[0];title=ex[1];}else{const s=mod.subs.find(x=>cur===mod.id+'-'+x[0]);if(s){subKey=s[0];title=s[1];}}}
+  RS={mod,subKey,role};
+  $('#sidebar').innerHTML=`<div class="logo"><b>สหัสา</b><span>Sahasa</span></div><nav class="nav">${navHTML(mod,subKey,role)}</nav><button type="button" class="ni sb-foot" data-go="auth-login">${I('logout',20)}<span class="lbl">ออกจากระบบ</span></button>`;
+  $('#crumb').innerHTML=title?`<span class="m">${mod.n}</span>${I('cr',18)}<b>${title}</b>`:`<b>${mod?mod.n:'แผนผังเมนู'}</b>`;
+  $('#abTitle').textContent=title||(mod?mod.n:'แผนผังเมนู');
+  const showSub=!!(mod&&mod.subs&&!mod.hideSubs);
+  $('#subtabs').innerHTML=showSub?mod.subs.map(([k,l])=>`<button type="button" class="chip ${subKey===k?'on':''}" data-go="${mod.id}-${k}">${l}</button>`).join(''):'';
+  $('#subtabs').hidden=!showSub;
+  const nm=role?role[1]:'Admin';$('#uname').textContent=nm;$('#av').textContent=nm.charAt(0);
+  const bn=[['dashboard-admin','หน้าหลัก','home'],['order-list','Order','list'],['factory-queue','โรงงาน','factory'],['users-notif','แจ้งเตือน','bell'],['menu','เมนู','menu']];
+  $('#bnav').innerHTML=bn.map(([k,l,i])=>{const on=k==='menu'?false:(k==='users-notif'?cur===k:(modOf(k)===mod&&cur!=='users-notif'));return `<button type="button" class="${on?'on':''}" ${k==='menu'?'data-menu':`data-go="${k}"`}>${I(i,22)}${l}</button>`;}).join('');
+  $('#content').innerHTML=V[view]();
+  const st=$('#subtabs .chip.on');if(st)st.scrollIntoView({block:'nearest',inline:'center'});
+  sc.scrollTo(0,0);
+  if(cur==='auth-session')openModal('m-timeout');
+}
+$('#menuBtn').innerHTML=I('menu',22);$('#abBell').innerHTML=I('bell',22);document.querySelector('.bell').innerHTML=I('bell',22);
+
+/* modal + drawer + toast */
+function openModal(id){const m=M[id];if(!m)return;closeModal();UID=500;
+  const el=document.createElement('div');el.className='modal';el.id='modal';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label',m.t);
+  el.innerHTML=`<div class="mbox" style="--w:${m.w||560}px"><span class="handle"></span><div class="mhd"><h2>${m.t}</h2><button type="button" class="xbtn" data-close aria-label="ปิด">${I('x',22)}</button></div><div class="mbd">${m.b()}</div><div class="mft">${btn(m.c||'ยกเลิก','sec',null,m.cgo?`data-go="${m.cgo}"`:'data-close')}${btn(m.f,m.k||'pri',m.ic,`data-done="${m.toast||'บันทึกแล้ว'}"`)}</div></div>`;
+  $('#device').appendChild(el);const f=el.querySelector('.mbd input,.mbd select,.mbd button,.mft .btn');if(f)f.focus({preventScroll:true});}
+function closeModal(){const m=$('#modal');if(m)m.remove();const d=$('#drawer');if(d)d.remove();}
+let tt;function toast(t){let e=$('#toast');if(!e){e=document.createElement('div');e.id='toast';e.className='toast';e.setAttribute('role','status');$('#device').appendChild(e);}e.innerHTML=I('check',18)+'<span>'+t+'</span>';e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>{e.hidden=true;},2600);}
+function openDrawer(){closeModal();const el=document.createElement('div');el.className='drawer';el.id='drawer';
+  el.innerHTML=`<div class="dbox"><div class="logo"><b>สหัสา</b><span>Sahasa</span></div><nav class="nav">${navHTML(RS.mod,RS.subKey,RS.role)}</nav></div>`;
+  $('#device').appendChild(el);}
+
+document.addEventListener('click',e=>{
+  const t=e.target;
+  const go=t.closest('[data-go]');
+  if(go){closeModal();goTo(go.dataset.go);if(go.dataset.toast)toast(go.dataset.toast);return;}
+  const q=t.closest('[data-q]');if(q){const b=q.parentElement.querySelector('b');b.textContent=Math.max(0,(+b.textContent)+(+q.dataset.q));return;}
+  const op=t.closest('[data-open]');if(op){openModal(op.dataset.open);return;}
+  if(t.closest('[data-close]')||t.id==='modal'||t.id==='drawer'){closeModal();return;}
+  const dn=t.closest('[data-done]');if(dn){closeModal();toast(dn.dataset.done);return;}
+  const ts=t.closest('[data-toast]');if(ts){toast(ts.dataset.toast);return;}
+  if(t.closest('[data-menu]')){openDrawer();return;}
+  if(t.closest('#menuBtn')){openDrawer();return;}
+  const sg=t.closest('[data-seg]');if(sg){sg.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c===sg));return;}
+  const mu=t.closest('[data-multi]');if(mu){mu.classList.toggle('on');return;}
+  const s=t.closest('.sw');if(s){s.classList.toggle('on');s.setAttribute('aria-pressed',s.classList.contains('on'));return;}
+  const tb=t.closest('.tab');if(tb){const bar=tb.parentElement;bar.querySelectorAll('.tab').forEach(x=>{x.classList.toggle('on',x===tb);x.setAttribute('aria-selected',x===tb);});
+    const scope=tb.closest('[data-tabscope]')||tb.closest('.card');const k=tb.dataset.tab;
+    if(scope)scope.querySelectorAll('[data-t]').forEach(r=>{r.hidden=!(k==='all'||r.dataset.t===k);});return;}
+});
+document.addEventListener('change',e=>{
+  const t=e.target;if(!t.classList||!t.classList.contains('cb'))return;
+  const scope=t.closest('[data-selscope]');if(!scope)return;
+  if(t.classList.contains('cb-all'))scope.querySelectorAll('.cb-row').forEach(c=>{if(!c.closest('[hidden]'))c.checked=t.checked;});
+  updBulk(scope);
+});
+function updBulk(scope){const vis=[...scope.querySelectorAll('.cb-row')].filter(c=>c.offsetParent!==null);const n=vis.filter(c=>c.checked).length;const b=scope.querySelector('.bulk');if(b){b.hidden=n===0;b.querySelector('.bulk-n').textContent=n;}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function goTo(k){closeModal();cur=V[k]?k:'map';try{if(location.hash!=='#'+cur)history.replaceState(null,'','#'+cur);}catch(_){}render();document.querySelectorAll('[data-selscope]').forEach(updBulk);}
+window.addEventListener('hashchange',()=>{const k=parse();if(k!==cur)goTo(k);});
+
+/* the scope helpers: card(...,'','" data-tabscope ...') injects attrs into the class string — normalise them */
+const _card=card;
+/* view toggle */
+function setView(force){document.body.classList.toggle('force',force);$('#vw-mob').classList.toggle('on',force);$('#vw-real').classList.toggle('on',!force);try{localStorage.setItem('sahasa-view',force?'m':'r');}catch(_){}}
+$('#vw-real').onclick=()=>setView(false);$('#vw-mob').onclick=()=>setView(true);
+let pref='r';try{pref=localStorage.getItem('sahasa-view')||'r';}catch(_){}
+setView(pref==='m');
+cur=parse();render();
+document.querySelectorAll('[data-selscope]').forEach(updBulk);
+</script>

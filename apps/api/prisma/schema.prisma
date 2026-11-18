@@ -1,5 +1,5 @@
 // Sahasa Admin — Prisma schema (MariaDB ของ Hostinger)
-// ตารางจริงจะเพิ่มหลังลูกค้าตอบคำถาม 🔴 ใน Documents/Database-Design-Notes.md section 7
+// ตารางจริงจะเพิ่มหลังลูกค้าตอบคำถาม 🔴 ใน _requirements/Database-Design-Notes.md section 7
 // หลักที่ใช้ทุกตาราง: utf8mb4_unicode_ci, InnoDB, เงิน Decimal(12,2), เวลา DateTime(3) เก็บเป็น UTC
 
 generator client {

@@ -22,7 +22,12 @@ playwright-report/
 !.env.example
 
 # Customer data — real names, addresses, phone numbers and slips. Never commit.
-Documents/
+_requirements/Documents/
+_requirements/Marketplace Order/
+# Safety net: spreadsheets/exports anywhere under _requirements/
+_requirements/**/*.xlsx
+_requirements/**/*.xls
+_requirements/**/*.csv
 uploads/
 
 # Logs

@@ -1,6 +1,6 @@
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 
-// สีจาก Designs/sahasa-prototype.html: --red #ab0202 (shade 7), --gold #d9a520 (shade 5)
+// Colors from _requirements/Designs/sahasa-prototype.html: --red #ab0202 (shade 7), --gold #d9a520 (shade 5)
 const brandRed: MantineColorsTuple = [
   '#fbeaea',
   '#f5cfcf',

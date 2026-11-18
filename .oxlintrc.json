@@ -32,8 +32,7 @@
     "**/generated/**",
     "**/routeTree.gen.ts",
     "**/storybook-static/**",
-    "Designs/**",
-    "Documents/**"
+    "_requirements/**"
   ],
   "overrides": [
     {

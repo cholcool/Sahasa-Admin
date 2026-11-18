@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * สถานะ Order — ร่างจาก SRS 9 + "ส่งไม่ครบ" (SRS 26)
- * ยังไม่ final: รอคำตอบข้อ 6 ใน Documents/Database-Design-Notes.md
+ * ยังไม่ final: รอคำตอบข้อ 6 ใน _requirements/Database-Design-Notes.md
  */
 export const ORDER_STATUSES = [
   'pending_review', // รอตรวจสอบ

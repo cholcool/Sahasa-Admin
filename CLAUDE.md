@@ -4,7 +4,8 @@
 ทีมมี 2 คน คือ **cholcool** และ **poom** ทั้งคู่ใช้ Claude ไฟล์นี้จึงเป็นกติกากลางของทั้งสองฝั่ง
 
 - ตอบผู้ใช้เป็น**ภาษาไทย**
-- ก่อนเริ่มงานที่เกี่ยวกับ requirement หรือ database ให้อ่าน `Documents/Database-Design-Notes.md` ก่อน (เป็นไฟล์หลักของโปรเจกต์) จากนั้นค่อยอ่าน `Documents/Requirements-Analysis.md` และ prototype หน้าจอ `Designs/sahasa-prototype.html`
+- ก่อนเริ่มงานที่เกี่ยวกับ requirement หรือ database ให้อ่าน `_requirements/Database-Design-Notes.md` ก่อน (เป็นไฟล์หลักของโปรเจกต์) จากนั้นค่อยอ่าน `_requirements/Requirements-Analysis.md` และ prototype หน้าจอ `_requirements/Designs/sahasa-prototype.html`
+- ไฟล์ Excel ต้นฉบับอยู่ใน `_requirements/Documents/` และ `_requirements/Marketplace Order/` ซึ่ง**ไม่อยู่ใน git** (มีข้อมูลลูกค้าจริง) ถ้าต้องใช้แต่ไม่มีในเครื่อง ให้บอกผู้ใช้ว่าต้องขอจาก cholcool อย่าเดาข้อมูลเอง
 - โครงสร้างโปรเจกต์และคำสั่งทั้งหมดอยู่ใน `README.md`
 
 ## Stack (ตัดสินใจแล้ว ห้ามเปลี่ยนเอง)
@@ -38,7 +39,7 @@ pnpm monorepo · Node 22 (`nvm use`, เครื่องอาจมี Node 2
   - `<app>`: `api` | `web` | `shared` | `root` (config ที่ root) | `docs`
   - `<module>`: ชื่อโมดูลตามตารางใน README เช่น `orders`, `factory`, `auth` (ถ้าไม่เจาะจงโมดูลให้เว้น เช่น `[root]: ...`)
   - ตัวอย่าง: `[api][orders]: add bulk confirm endpoint`, `[web][orders]: fix status filter reset on page change`
-- ห้าม commit: `.env`, ไฟล์ `.xlsx` / `.csv` / รูปสลิปใน `Documents/` (มีชื่อ ที่อยู่ และเบอร์โทรของลูกค้าจริง), `CLAUDE.local.md`
+- ห้าม commit: `.env`, ไฟล์ Excel / CSV / รูปสลิป (มีชื่อ ที่อยู่ และเบอร์โทรของลูกค้าจริง), `CLAUDE.local.md` ไฟล์ข้อมูลใหม่ให้วางใน `_requirements/Documents/` หรือ `_requirements/Marketplace Order/` เท่านั้น และห้ามแก้ `.gitignore` ให้สองโฟลเดอร์นี้เข้า git
 
 ## ต้องถามก่อนทำ
 

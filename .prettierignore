@@ -1,5 +1,4 @@
-Designs/
-Documents/
+_requirements/
 pnpm-lock.yaml
 **/routeTree.gen.ts
 **/generated/
