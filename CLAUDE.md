@@ -1,7 +1,7 @@
 # CLAUDE.md — Sahasa Admin
 
 ระบบหลังบ้านจัดการออเดอร์ของบริษัท สหัสสา (เต้าหู้ + น้ำจิ้ม) จาก Shopee, Lazada, TikTok, Line, Facebook, หน้าร้าน และโทรสั่ง
-ทีมมี 2 คน คือ **cholcool** และ **poom** ทั้งคู่ใช้ Claude ไฟล์นี้จึงเป็นกติกากลางของทั้งสองฝั่ง
+ทีมมี 2 คน คือ **cholcool** และ **fineart09** ทั้งคู่ใช้ Claude ไฟล์นี้จึงเป็นกติกากลางของทั้งสองฝั่ง
 
 - ตอบผู้ใช้เป็น**ภาษาไทย**
 - ก่อนเริ่มงานที่เกี่ยวกับ requirement หรือ database ให้อ่าน `_requirements/Database-Design-Notes.md` ก่อน (เป็นไฟล์หลักของโปรเจกต์) จากนั้นค่อยอ่าน `_requirements/Requirements-Analysis.md` และ prototype หน้าจอ `_requirements/Designs/sahasa-prototype.html`
@@ -32,9 +32,9 @@ pnpm monorepo · Node 22 (`nvm use`, เครื่องอาจมี Node 2
 
 ## Git
 
-- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `poom` ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
+- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `fineart09` ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
 - **commit เฉพาะเมื่อผู้ใช้สั่งเท่านั้น** และห้าม push, merge, rebase หรือ force-push เอง
-- ห้ามแก้ไขหรือ commit ลง `main` และห้ามแตะ branch ของอีกคน **cholcool เป็นคนเดียวที่ merge เข้า `main`**
+- ห้ามแก้ไขหรือ commit ลง `main` และห้ามแตะ branch ของอีกคน **cholcool เป็นคนเดียวที่ merge เข้า `main`** (branch เดิมของ fineart09 คือ `poom` ถูกเปลี่ยนชื่อเป็น `fineart09`)
 - รูปแบบข้อความ commit: `[<app>][<module>]: <สิ่งที่ทำ เป็นภาษาอังกฤษ>`
   - `<app>`: `api` | `web` | `shared` | `root` (config ที่ root) | `docs`
   - `<module>`: ชื่อโมดูลตามตารางใน README เช่น `orders`, `factory`, `auth` (ถ้าไม่เจาะจงโมดูลให้เว้น เช่น `[root]: ...`)
