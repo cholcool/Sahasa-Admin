@@ -1,0 +1,57 @@
+.root {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 43%) minmax(0, 1fr);
+  min-height: 100vh;
+
+  @media (max-width: $mantine-breakpoint-sm) {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+}
+
+.themeBtn {
+  position: absolute;
+  top: var(--mantine-spacing-md);
+  right: var(--mantine-spacing-md);
+  z-index: 1;
+}
+
+.brand {
+  background: var(--sahasa-sidebar);
+  color: var(--mantine-color-white);
+  padding: 32px;
+  text-align: center;
+
+  @media (max-width: $mantine-breakpoint-sm) {
+    padding: 36px 16px;
+    min-height: 230px;
+  }
+}
+
+.logo {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.logoSub {
+  color: var(--mantine-color-gold-3);
+  letter-spacing: 4px;
+}
+
+.formSide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+
+  @media (max-width: $mantine-breakpoint-sm) {
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+}
+
+.card {
+  width: min(440px, 100%);
+}

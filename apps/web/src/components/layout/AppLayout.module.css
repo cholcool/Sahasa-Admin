@@ -1,20 +1,58 @@
 .navbar {
   background: var(--sahasa-sidebar);
   border: 0;
+  color: var(--mantine-color-white);
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--mantine-color-white);
+}
+
+.logoSub {
+  color: var(--mantine-color-gold-3);
+  letter-spacing: 2px;
 }
 
 .navLink {
-  color: #fff;
+  color: var(--mantine-color-white);
   border-radius: var(--mantine-radius-md);
 
   &[data-active] {
     background: var(--sahasa-sidebar-active);
-    color: #fff;
+    color: var(--mantine-color-white);
   }
 
   @mixin hover {
     background: var(--sahasa-sidebar-active);
   }
+}
+
+.subLink {
+  composes: navLink;
+  font-size: var(--mantine-font-size-sm);
+  opacity: 0.85;
+
+  &[data-active] {
+    opacity: 1;
+    font-weight: 600;
+    background: transparent;
+    color: var(--mantine-color-gold-3);
+  }
+}
+
+.crumb {
+  min-width: 0;
+}
+
+.crumbSep {
+  color: var(--mantine-color-dimmed);
+}
+
+.subTabs {
+  flex-wrap: nowrap;
 }
 
 .bottomNav {
@@ -33,7 +71,7 @@
   color: var(--mantine-color-dimmed);
   text-decoration: none;
 
-  &[data-status='active'] {
+  &[data-active] {
     color: var(--mantine-primary-color-filled);
   }
 }

@@ -11,9 +11,50 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as ForgotPasswordIndexRouteImport } from './routes/forgot-password/index'
+import { Route as ForgotPasswordSentRouteImport } from './routes/forgot-password/sent'
+import { Route as AppAccountingIndexRouteImport } from './routes/_app/accounting/index'
+import { Route as AppAccountingCreditNotesRouteImport } from './routes/_app/accounting/credit-notes'
+import { Route as AppAccountingDocumentsRouteImport } from './routes/_app/accounting/documents'
+import { Route as AppAccountingReconcileRouteImport } from './routes/_app/accounting/reconcile'
+import { Route as AppDashboardAccountingRouteImport } from './routes/_app/dashboard/accounting'
+import { Route as AppDashboardFactoryRouteImport } from './routes/_app/dashboard/factory'
+import { Route as AppFactoryIndexRouteImport } from './routes/_app/factory/index'
+import { Route as AppFactoryPrintRouteImport } from './routes/_app/factory/print'
+import { Route as AppFactoryProductionRouteImport } from './routes/_app/factory/production'
+import { Route as AppFactoryShippingRouteImport } from './routes/_app/factory/shipping'
+import { Route as AppMasterIndexRouteImport } from './routes/_app/master/index'
+import { Route as AppMasterCancelReasonsRouteImport } from './routes/_app/master/cancel-reasons'
+import { Route as AppMasterCarriersRouteImport } from './routes/_app/master/carriers'
+import { Route as AppMasterChannelsRouteImport } from './routes/_app/master/channels'
+import { Route as AppMasterCompanyRouteImport } from './routes/_app/master/company'
+import { Route as AppMasterCustomersRouteImport } from './routes/_app/master/customers'
+import { Route as AppMasterCutoffRouteImport } from './routes/_app/master/cutoff'
+import { Route as AppMasterImportRouteImport } from './routes/_app/master/import'
+import { Route as AppMasterSkuMappingRouteImport } from './routes/_app/master/sku-mapping'
 import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
-import { Route as AppOrdersOrderIdRouteImport } from './routes/_app/orders/$orderId'
+import { Route as AppOrdersNewRouteImport } from './routes/_app/orders/new'
+import { Route as AppOrdersUploadRouteImport } from './routes/_app/orders/upload'
+import { Route as AppPlatformsIndexRouteImport } from './routes/_app/platforms/index'
+import { Route as AppPlatformsLogsRouteImport } from './routes/_app/platforms/logs'
+import { Route as AppPlatformsUnmappedSkuRouteImport } from './routes/_app/platforms/unmapped-sku'
+import { Route as AppReportsIndexRouteImport } from './routes/_app/reports/index'
+import { Route as AppReportsEditsRouteImport } from './routes/_app/reports/edits'
+import { Route as AppReportsPendingRouteImport } from './routes/_app/reports/pending'
+import { Route as AppReportsReconcileRouteImport } from './routes/_app/reports/reconcile'
+import { Route as AppReportsTaxRouteImport } from './routes/_app/reports/tax'
+import { Route as AppStockIndexRouteImport } from './routes/_app/stock/index'
+import { Route as AppStockLedgerRouteImport } from './routes/_app/stock/ledger'
+import { Route as AppStockReceiveRouteImport } from './routes/_app/stock/receive'
+import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
+import { Route as AppUsersAuditRouteImport } from './routes/_app/users/audit'
+import { Route as AppUsersNotificationsRouteImport } from './routes/_app/users/notifications'
+import { Route as AppUsersRolesRouteImport } from './routes/_app/users/roles'
+import { Route as AppOrdersOrderIdIndexRouteImport } from './routes/_app/orders/$orderId/index'
+import { Route as AppOrdersOrderIdEditRouteImport } from './routes/_app/orders/$orderId/edit'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -24,9 +65,125 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionExpiredRoute = SessionExpiredRouteImport.update({
+  id: '/session-expired',
+  path: '/session-expired',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const ForgotPasswordIndexRoute = ForgotPasswordIndexRouteImport.update({
+  id: '/forgot-password/',
+  path: '/forgot-password/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordSentRoute = ForgotPasswordSentRouteImport.update({
+  id: '/forgot-password/sent',
+  path: '/forgot-password/sent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppAccountingIndexRoute = AppAccountingIndexRouteImport.update({
+  id: '/accounting/',
+  path: '/accounting/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountingCreditNotesRoute =
+  AppAccountingCreditNotesRouteImport.update({
+    id: '/accounting/credit-notes',
+    path: '/accounting/credit-notes',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppAccountingDocumentsRoute = AppAccountingDocumentsRouteImport.update({
+  id: '/accounting/documents',
+  path: '/accounting/documents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountingReconcileRoute = AppAccountingReconcileRouteImport.update({
+  id: '/accounting/reconcile',
+  path: '/accounting/reconcile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardAccountingRoute = AppDashboardAccountingRouteImport.update({
+  id: '/dashboard/accounting',
+  path: '/dashboard/accounting',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardFactoryRoute = AppDashboardFactoryRouteImport.update({
+  id: '/dashboard/factory',
+  path: '/dashboard/factory',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFactoryIndexRoute = AppFactoryIndexRouteImport.update({
+  id: '/factory/',
+  path: '/factory/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFactoryPrintRoute = AppFactoryPrintRouteImport.update({
+  id: '/factory/print',
+  path: '/factory/print',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFactoryProductionRoute = AppFactoryProductionRouteImport.update({
+  id: '/factory/production',
+  path: '/factory/production',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFactoryShippingRoute = AppFactoryShippingRouteImport.update({
+  id: '/factory/shipping',
+  path: '/factory/shipping',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterIndexRoute = AppMasterIndexRouteImport.update({
+  id: '/master/',
+  path: '/master/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterCancelReasonsRoute = AppMasterCancelReasonsRouteImport.update({
+  id: '/master/cancel-reasons',
+  path: '/master/cancel-reasons',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterCarriersRoute = AppMasterCarriersRouteImport.update({
+  id: '/master/carriers',
+  path: '/master/carriers',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterChannelsRoute = AppMasterChannelsRouteImport.update({
+  id: '/master/channels',
+  path: '/master/channels',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterCompanyRoute = AppMasterCompanyRouteImport.update({
+  id: '/master/company',
+  path: '/master/company',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterCustomersRoute = AppMasterCustomersRouteImport.update({
+  id: '/master/customers',
+  path: '/master/customers',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterCutoffRoute = AppMasterCutoffRouteImport.update({
+  id: '/master/cutoff',
+  path: '/master/cutoff',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterImportRoute = AppMasterImportRouteImport.update({
+  id: '/master/import',
+  path: '/master/import',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMasterSkuMappingRoute = AppMasterSkuMappingRouteImport.update({
+  id: '/master/sku-mapping',
+  path: '/master/sku-mapping',
   getParentRoute: () => AppRoute,
 } as any)
 const AppOrdersIndexRoute = AppOrdersIndexRouteImport.update({
@@ -34,49 +191,397 @@ const AppOrdersIndexRoute = AppOrdersIndexRouteImport.update({
   path: '/orders/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppOrdersOrderIdRoute = AppOrdersOrderIdRouteImport.update({
-  id: '/orders/$orderId',
-  path: '/orders/$orderId',
+const AppOrdersNewRoute = AppOrdersNewRouteImport.update({
+  id: '/orders/new',
+  path: '/orders/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrdersUploadRoute = AppOrdersUploadRouteImport.update({
+  id: '/orders/upload',
+  path: '/orders/upload',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlatformsIndexRoute = AppPlatformsIndexRouteImport.update({
+  id: '/platforms/',
+  path: '/platforms/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlatformsLogsRoute = AppPlatformsLogsRouteImport.update({
+  id: '/platforms/logs',
+  path: '/platforms/logs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlatformsUnmappedSkuRoute = AppPlatformsUnmappedSkuRouteImport.update({
+  id: '/platforms/unmapped-sku',
+  path: '/platforms/unmapped-sku',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
+  id: '/reports/',
+  path: '/reports/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsEditsRoute = AppReportsEditsRouteImport.update({
+  id: '/reports/edits',
+  path: '/reports/edits',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsPendingRoute = AppReportsPendingRouteImport.update({
+  id: '/reports/pending',
+  path: '/reports/pending',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsReconcileRoute = AppReportsReconcileRouteImport.update({
+  id: '/reports/reconcile',
+  path: '/reports/reconcile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsTaxRoute = AppReportsTaxRouteImport.update({
+  id: '/reports/tax',
+  path: '/reports/tax',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockIndexRoute = AppStockIndexRouteImport.update({
+  id: '/stock/',
+  path: '/stock/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockLedgerRoute = AppStockLedgerRouteImport.update({
+  id: '/stock/ledger',
+  path: '/stock/ledger',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStockReceiveRoute = AppStockReceiveRouteImport.update({
+  id: '/stock/receive',
+  path: '/stock/receive',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersAuditRoute = AppUsersAuditRouteImport.update({
+  id: '/users/audit',
+  path: '/users/audit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersNotificationsRoute = AppUsersNotificationsRouteImport.update({
+  id: '/users/notifications',
+  path: '/users/notifications',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRolesRoute = AppUsersRolesRouteImport.update({
+  id: '/users/roles',
+  path: '/users/roles',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrdersOrderIdIndexRoute = AppOrdersOrderIdIndexRouteImport.update({
+  id: '/orders/$orderId/',
+  path: '/orders/$orderId/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOrdersOrderIdEditRoute = AppOrdersOrderIdEditRouteImport.update({
+  id: '/orders/$orderId/edit',
+  path: '/orders/$orderId/edit',
   getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
-  '/orders/$orderId': typeof AppOrdersOrderIdRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/session-expired': typeof SessionExpiredRoute
+  '/forgot-password/sent': typeof ForgotPasswordSentRoute
+  '/forgot-password/': typeof ForgotPasswordIndexRoute
+  '/accounting/credit-notes': typeof AppAccountingCreditNotesRoute
+  '/accounting/documents': typeof AppAccountingDocumentsRoute
+  '/accounting/reconcile': typeof AppAccountingReconcileRoute
+  '/dashboard/accounting': typeof AppDashboardAccountingRoute
+  '/dashboard/factory': typeof AppDashboardFactoryRoute
+  '/factory/print': typeof AppFactoryPrintRoute
+  '/factory/production': typeof AppFactoryProductionRoute
+  '/factory/shipping': typeof AppFactoryShippingRoute
+  '/master/cancel-reasons': typeof AppMasterCancelReasonsRoute
+  '/master/carriers': typeof AppMasterCarriersRoute
+  '/master/channels': typeof AppMasterChannelsRoute
+  '/master/company': typeof AppMasterCompanyRoute
+  '/master/customers': typeof AppMasterCustomersRoute
+  '/master/cutoff': typeof AppMasterCutoffRoute
+  '/master/import': typeof AppMasterImportRoute
+  '/master/sku-mapping': typeof AppMasterSkuMappingRoute
+  '/orders/new': typeof AppOrdersNewRoute
+  '/orders/upload': typeof AppOrdersUploadRoute
+  '/platforms/logs': typeof AppPlatformsLogsRoute
+  '/platforms/unmapped-sku': typeof AppPlatformsUnmappedSkuRoute
+  '/reports/edits': typeof AppReportsEditsRoute
+  '/reports/pending': typeof AppReportsPendingRoute
+  '/reports/reconcile': typeof AppReportsReconcileRoute
+  '/reports/tax': typeof AppReportsTaxRoute
+  '/stock/ledger': typeof AppStockLedgerRoute
+  '/stock/receive': typeof AppStockReceiveRoute
+  '/users/audit': typeof AppUsersAuditRoute
+  '/users/notifications': typeof AppUsersNotificationsRoute
+  '/users/roles': typeof AppUsersRolesRoute
+  '/accounting/': typeof AppAccountingIndexRoute
+  '/factory/': typeof AppFactoryIndexRoute
+  '/master/': typeof AppMasterIndexRoute
   '/orders/': typeof AppOrdersIndexRoute
+  '/platforms/': typeof AppPlatformsIndexRoute
+  '/reports/': typeof AppReportsIndexRoute
+  '/stock/': typeof AppStockIndexRoute
+  '/users/': typeof AppUsersIndexRoute
+  '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/session-expired': typeof SessionExpiredRoute
+  '/forgot-password/sent': typeof ForgotPasswordSentRoute
   '/': typeof AppIndexRoute
-  '/orders/$orderId': typeof AppOrdersOrderIdRoute
+  '/forgot-password': typeof ForgotPasswordIndexRoute
+  '/accounting/credit-notes': typeof AppAccountingCreditNotesRoute
+  '/accounting/documents': typeof AppAccountingDocumentsRoute
+  '/accounting/reconcile': typeof AppAccountingReconcileRoute
+  '/dashboard/accounting': typeof AppDashboardAccountingRoute
+  '/dashboard/factory': typeof AppDashboardFactoryRoute
+  '/factory/print': typeof AppFactoryPrintRoute
+  '/factory/production': typeof AppFactoryProductionRoute
+  '/factory/shipping': typeof AppFactoryShippingRoute
+  '/master/cancel-reasons': typeof AppMasterCancelReasonsRoute
+  '/master/carriers': typeof AppMasterCarriersRoute
+  '/master/channels': typeof AppMasterChannelsRoute
+  '/master/company': typeof AppMasterCompanyRoute
+  '/master/customers': typeof AppMasterCustomersRoute
+  '/master/cutoff': typeof AppMasterCutoffRoute
+  '/master/import': typeof AppMasterImportRoute
+  '/master/sku-mapping': typeof AppMasterSkuMappingRoute
+  '/orders/new': typeof AppOrdersNewRoute
+  '/orders/upload': typeof AppOrdersUploadRoute
+  '/platforms/logs': typeof AppPlatformsLogsRoute
+  '/platforms/unmapped-sku': typeof AppPlatformsUnmappedSkuRoute
+  '/reports/edits': typeof AppReportsEditsRoute
+  '/reports/pending': typeof AppReportsPendingRoute
+  '/reports/reconcile': typeof AppReportsReconcileRoute
+  '/reports/tax': typeof AppReportsTaxRoute
+  '/stock/ledger': typeof AppStockLedgerRoute
+  '/stock/receive': typeof AppStockReceiveRoute
+  '/users/audit': typeof AppUsersAuditRoute
+  '/users/notifications': typeof AppUsersNotificationsRoute
+  '/users/roles': typeof AppUsersRolesRoute
+  '/accounting': typeof AppAccountingIndexRoute
+  '/factory': typeof AppFactoryIndexRoute
+  '/master': typeof AppMasterIndexRoute
   '/orders': typeof AppOrdersIndexRoute
+  '/platforms': typeof AppPlatformsIndexRoute
+  '/reports': typeof AppReportsIndexRoute
+  '/stock': typeof AppStockIndexRoute
+  '/users': typeof AppUsersIndexRoute
+  '/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/orders/$orderId': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/session-expired': typeof SessionExpiredRoute
+  '/forgot-password/sent': typeof ForgotPasswordSentRoute
   '/_app/': typeof AppIndexRoute
-  '/_app/orders/$orderId': typeof AppOrdersOrderIdRoute
+  '/forgot-password/': typeof ForgotPasswordIndexRoute
+  '/_app/accounting/credit-notes': typeof AppAccountingCreditNotesRoute
+  '/_app/accounting/documents': typeof AppAccountingDocumentsRoute
+  '/_app/accounting/reconcile': typeof AppAccountingReconcileRoute
+  '/_app/dashboard/accounting': typeof AppDashboardAccountingRoute
+  '/_app/dashboard/factory': typeof AppDashboardFactoryRoute
+  '/_app/factory/print': typeof AppFactoryPrintRoute
+  '/_app/factory/production': typeof AppFactoryProductionRoute
+  '/_app/factory/shipping': typeof AppFactoryShippingRoute
+  '/_app/master/cancel-reasons': typeof AppMasterCancelReasonsRoute
+  '/_app/master/carriers': typeof AppMasterCarriersRoute
+  '/_app/master/channels': typeof AppMasterChannelsRoute
+  '/_app/master/company': typeof AppMasterCompanyRoute
+  '/_app/master/customers': typeof AppMasterCustomersRoute
+  '/_app/master/cutoff': typeof AppMasterCutoffRoute
+  '/_app/master/import': typeof AppMasterImportRoute
+  '/_app/master/sku-mapping': typeof AppMasterSkuMappingRoute
+  '/_app/orders/new': typeof AppOrdersNewRoute
+  '/_app/orders/upload': typeof AppOrdersUploadRoute
+  '/_app/platforms/logs': typeof AppPlatformsLogsRoute
+  '/_app/platforms/unmapped-sku': typeof AppPlatformsUnmappedSkuRoute
+  '/_app/reports/edits': typeof AppReportsEditsRoute
+  '/_app/reports/pending': typeof AppReportsPendingRoute
+  '/_app/reports/reconcile': typeof AppReportsReconcileRoute
+  '/_app/reports/tax': typeof AppReportsTaxRoute
+  '/_app/stock/ledger': typeof AppStockLedgerRoute
+  '/_app/stock/receive': typeof AppStockReceiveRoute
+  '/_app/users/audit': typeof AppUsersAuditRoute
+  '/_app/users/notifications': typeof AppUsersNotificationsRoute
+  '/_app/users/roles': typeof AppUsersRolesRoute
+  '/_app/accounting/': typeof AppAccountingIndexRoute
+  '/_app/factory/': typeof AppFactoryIndexRoute
+  '/_app/master/': typeof AppMasterIndexRoute
   '/_app/orders/': typeof AppOrdersIndexRoute
+  '/_app/platforms/': typeof AppPlatformsIndexRoute
+  '/_app/reports/': typeof AppReportsIndexRoute
+  '/_app/stock/': typeof AppStockIndexRoute
+  '/_app/users/': typeof AppUsersIndexRoute
+  '/_app/orders/$orderId/edit': typeof AppOrdersOrderIdEditRoute
+  '/_app/orders/$orderId/': typeof AppOrdersOrderIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/orders/$orderId' | '/orders/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/reset-password'
+    | '/session-expired'
+    | '/forgot-password/sent'
+    | '/forgot-password/'
+    | '/accounting/credit-notes'
+    | '/accounting/documents'
+    | '/accounting/reconcile'
+    | '/dashboard/accounting'
+    | '/dashboard/factory'
+    | '/factory/print'
+    | '/factory/production'
+    | '/factory/shipping'
+    | '/master/cancel-reasons'
+    | '/master/carriers'
+    | '/master/channels'
+    | '/master/company'
+    | '/master/customers'
+    | '/master/cutoff'
+    | '/master/import'
+    | '/master/sku-mapping'
+    | '/orders/new'
+    | '/orders/upload'
+    | '/platforms/logs'
+    | '/platforms/unmapped-sku'
+    | '/reports/edits'
+    | '/reports/pending'
+    | '/reports/reconcile'
+    | '/reports/tax'
+    | '/stock/ledger'
+    | '/stock/receive'
+    | '/users/audit'
+    | '/users/notifications'
+    | '/users/roles'
+    | '/accounting/'
+    | '/factory/'
+    | '/master/'
+    | '/orders/'
+    | '/platforms/'
+    | '/reports/'
+    | '/stock/'
+    | '/users/'
+    | '/orders/$orderId/edit'
+    | '/orders/$orderId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/orders/$orderId' | '/orders'
+  to:
+    | '/login'
+    | '/reset-password'
+    | '/session-expired'
+    | '/forgot-password/sent'
+    | '/'
+    | '/forgot-password'
+    | '/accounting/credit-notes'
+    | '/accounting/documents'
+    | '/accounting/reconcile'
+    | '/dashboard/accounting'
+    | '/dashboard/factory'
+    | '/factory/print'
+    | '/factory/production'
+    | '/factory/shipping'
+    | '/master/cancel-reasons'
+    | '/master/carriers'
+    | '/master/channels'
+    | '/master/company'
+    | '/master/customers'
+    | '/master/cutoff'
+    | '/master/import'
+    | '/master/sku-mapping'
+    | '/orders/new'
+    | '/orders/upload'
+    | '/platforms/logs'
+    | '/platforms/unmapped-sku'
+    | '/reports/edits'
+    | '/reports/pending'
+    | '/reports/reconcile'
+    | '/reports/tax'
+    | '/stock/ledger'
+    | '/stock/receive'
+    | '/users/audit'
+    | '/users/notifications'
+    | '/users/roles'
+    | '/accounting'
+    | '/factory'
+    | '/master'
+    | '/orders'
+    | '/platforms'
+    | '/reports'
+    | '/stock'
+    | '/users'
+    | '/orders/$orderId/edit'
+    | '/orders/$orderId'
   id:
     | '__root__'
     | '/_app'
     | '/login'
+    | '/reset-password'
+    | '/session-expired'
+    | '/forgot-password/sent'
     | '/_app/'
-    | '/_app/orders/$orderId'
+    | '/forgot-password/'
+    | '/_app/accounting/credit-notes'
+    | '/_app/accounting/documents'
+    | '/_app/accounting/reconcile'
+    | '/_app/dashboard/accounting'
+    | '/_app/dashboard/factory'
+    | '/_app/factory/print'
+    | '/_app/factory/production'
+    | '/_app/factory/shipping'
+    | '/_app/master/cancel-reasons'
+    | '/_app/master/carriers'
+    | '/_app/master/channels'
+    | '/_app/master/company'
+    | '/_app/master/customers'
+    | '/_app/master/cutoff'
+    | '/_app/master/import'
+    | '/_app/master/sku-mapping'
+    | '/_app/orders/new'
+    | '/_app/orders/upload'
+    | '/_app/platforms/logs'
+    | '/_app/platforms/unmapped-sku'
+    | '/_app/reports/edits'
+    | '/_app/reports/pending'
+    | '/_app/reports/reconcile'
+    | '/_app/reports/tax'
+    | '/_app/stock/ledger'
+    | '/_app/stock/receive'
+    | '/_app/users/audit'
+    | '/_app/users/notifications'
+    | '/_app/users/roles'
+    | '/_app/accounting/'
+    | '/_app/factory/'
+    | '/_app/master/'
     | '/_app/orders/'
+    | '/_app/platforms/'
+    | '/_app/reports/'
+    | '/_app/stock/'
+    | '/_app/users/'
+    | '/_app/orders/$orderId/edit'
+    | '/_app/orders/$orderId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SessionExpiredRoute: typeof SessionExpiredRoute
+  ForgotPasswordSentRoute: typeof ForgotPasswordSentRoute
+  ForgotPasswordIndexRoute: typeof ForgotPasswordIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -95,11 +600,172 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session-expired': {
+      id: '/session-expired'
+      path: '/session-expired'
+      fullPath: '/session-expired'
+      preLoaderRoute: typeof SessionExpiredRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/': {
       id: '/_app/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/forgot-password/': {
+      id: '/forgot-password/'
+      path: '/forgot-password'
+      fullPath: '/forgot-password/'
+      preLoaderRoute: typeof ForgotPasswordIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password/sent': {
+      id: '/forgot-password/sent'
+      path: '/forgot-password/sent'
+      fullPath: '/forgot-password/sent'
+      preLoaderRoute: typeof ForgotPasswordSentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/accounting/': {
+      id: '/_app/accounting/'
+      path: '/accounting'
+      fullPath: '/accounting/'
+      preLoaderRoute: typeof AppAccountingIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounting/credit-notes': {
+      id: '/_app/accounting/credit-notes'
+      path: '/accounting/credit-notes'
+      fullPath: '/accounting/credit-notes'
+      preLoaderRoute: typeof AppAccountingCreditNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounting/documents': {
+      id: '/_app/accounting/documents'
+      path: '/accounting/documents'
+      fullPath: '/accounting/documents'
+      preLoaderRoute: typeof AppAccountingDocumentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounting/reconcile': {
+      id: '/_app/accounting/reconcile'
+      path: '/accounting/reconcile'
+      fullPath: '/accounting/reconcile'
+      preLoaderRoute: typeof AppAccountingReconcileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard/accounting': {
+      id: '/_app/dashboard/accounting'
+      path: '/dashboard/accounting'
+      fullPath: '/dashboard/accounting'
+      preLoaderRoute: typeof AppDashboardAccountingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard/factory': {
+      id: '/_app/dashboard/factory'
+      path: '/dashboard/factory'
+      fullPath: '/dashboard/factory'
+      preLoaderRoute: typeof AppDashboardFactoryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factory/': {
+      id: '/_app/factory/'
+      path: '/factory'
+      fullPath: '/factory/'
+      preLoaderRoute: typeof AppFactoryIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factory/print': {
+      id: '/_app/factory/print'
+      path: '/factory/print'
+      fullPath: '/factory/print'
+      preLoaderRoute: typeof AppFactoryPrintRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factory/production': {
+      id: '/_app/factory/production'
+      path: '/factory/production'
+      fullPath: '/factory/production'
+      preLoaderRoute: typeof AppFactoryProductionRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/factory/shipping': {
+      id: '/_app/factory/shipping'
+      path: '/factory/shipping'
+      fullPath: '/factory/shipping'
+      preLoaderRoute: typeof AppFactoryShippingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/': {
+      id: '/_app/master/'
+      path: '/master'
+      fullPath: '/master/'
+      preLoaderRoute: typeof AppMasterIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/cancel-reasons': {
+      id: '/_app/master/cancel-reasons'
+      path: '/master/cancel-reasons'
+      fullPath: '/master/cancel-reasons'
+      preLoaderRoute: typeof AppMasterCancelReasonsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/carriers': {
+      id: '/_app/master/carriers'
+      path: '/master/carriers'
+      fullPath: '/master/carriers'
+      preLoaderRoute: typeof AppMasterCarriersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/channels': {
+      id: '/_app/master/channels'
+      path: '/master/channels'
+      fullPath: '/master/channels'
+      preLoaderRoute: typeof AppMasterChannelsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/company': {
+      id: '/_app/master/company'
+      path: '/master/company'
+      fullPath: '/master/company'
+      preLoaderRoute: typeof AppMasterCompanyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/customers': {
+      id: '/_app/master/customers'
+      path: '/master/customers'
+      fullPath: '/master/customers'
+      preLoaderRoute: typeof AppMasterCustomersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/cutoff': {
+      id: '/_app/master/cutoff'
+      path: '/master/cutoff'
+      fullPath: '/master/cutoff'
+      preLoaderRoute: typeof AppMasterCutoffRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/import': {
+      id: '/_app/master/import'
+      path: '/master/import'
+      fullPath: '/master/import'
+      preLoaderRoute: typeof AppMasterImportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/master/sku-mapping': {
+      id: '/_app/master/sku-mapping'
+      path: '/master/sku-mapping'
+      fullPath: '/master/sku-mapping'
+      preLoaderRoute: typeof AppMasterSkuMappingRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/orders/': {
@@ -109,11 +775,137 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOrdersIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/orders/$orderId': {
-      id: '/_app/orders/$orderId'
+    '/_app/orders/new': {
+      id: '/_app/orders/new'
+      path: '/orders/new'
+      fullPath: '/orders/new'
+      preLoaderRoute: typeof AppOrdersNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/orders/upload': {
+      id: '/_app/orders/upload'
+      path: '/orders/upload'
+      fullPath: '/orders/upload'
+      preLoaderRoute: typeof AppOrdersUploadRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/platforms/': {
+      id: '/_app/platforms/'
+      path: '/platforms'
+      fullPath: '/platforms/'
+      preLoaderRoute: typeof AppPlatformsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/platforms/logs': {
+      id: '/_app/platforms/logs'
+      path: '/platforms/logs'
+      fullPath: '/platforms/logs'
+      preLoaderRoute: typeof AppPlatformsLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/platforms/unmapped-sku': {
+      id: '/_app/platforms/unmapped-sku'
+      path: '/platforms/unmapped-sku'
+      fullPath: '/platforms/unmapped-sku'
+      preLoaderRoute: typeof AppPlatformsUnmappedSkuRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/': {
+      id: '/_app/reports/'
+      path: '/reports'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof AppReportsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/edits': {
+      id: '/_app/reports/edits'
+      path: '/reports/edits'
+      fullPath: '/reports/edits'
+      preLoaderRoute: typeof AppReportsEditsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/pending': {
+      id: '/_app/reports/pending'
+      path: '/reports/pending'
+      fullPath: '/reports/pending'
+      preLoaderRoute: typeof AppReportsPendingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/reconcile': {
+      id: '/_app/reports/reconcile'
+      path: '/reports/reconcile'
+      fullPath: '/reports/reconcile'
+      preLoaderRoute: typeof AppReportsReconcileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports/tax': {
+      id: '/_app/reports/tax'
+      path: '/reports/tax'
+      fullPath: '/reports/tax'
+      preLoaderRoute: typeof AppReportsTaxRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/': {
+      id: '/_app/stock/'
+      path: '/stock'
+      fullPath: '/stock/'
+      preLoaderRoute: typeof AppStockIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/ledger': {
+      id: '/_app/stock/ledger'
+      path: '/stock/ledger'
+      fullPath: '/stock/ledger'
+      preLoaderRoute: typeof AppStockLedgerRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/stock/receive': {
+      id: '/_app/stock/receive'
+      path: '/stock/receive'
+      fullPath: '/stock/receive'
+      preLoaderRoute: typeof AppStockReceiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/': {
+      id: '/_app/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof AppUsersIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/audit': {
+      id: '/_app/users/audit'
+      path: '/users/audit'
+      fullPath: '/users/audit'
+      preLoaderRoute: typeof AppUsersAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/notifications': {
+      id: '/_app/users/notifications'
+      path: '/users/notifications'
+      fullPath: '/users/notifications'
+      preLoaderRoute: typeof AppUsersNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/roles': {
+      id: '/_app/users/roles'
+      path: '/users/roles'
+      fullPath: '/users/roles'
+      preLoaderRoute: typeof AppUsersRolesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/orders/$orderId/': {
+      id: '/_app/orders/$orderId/'
       path: '/orders/$orderId'
-      fullPath: '/orders/$orderId'
-      preLoaderRoute: typeof AppOrdersOrderIdRouteImport
+      fullPath: '/orders/$orderId/'
+      preLoaderRoute: typeof AppOrdersOrderIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/orders/$orderId/edit': {
+      id: '/_app/orders/$orderId/edit'
+      path: '/orders/$orderId/edit'
+      fullPath: '/orders/$orderId/edit'
+      preLoaderRoute: typeof AppOrdersOrderIdEditRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -121,14 +913,88 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
-  AppOrdersOrderIdRoute: typeof AppOrdersOrderIdRoute
+  AppAccountingCreditNotesRoute: typeof AppAccountingCreditNotesRoute
+  AppAccountingDocumentsRoute: typeof AppAccountingDocumentsRoute
+  AppAccountingReconcileRoute: typeof AppAccountingReconcileRoute
+  AppDashboardAccountingRoute: typeof AppDashboardAccountingRoute
+  AppDashboardFactoryRoute: typeof AppDashboardFactoryRoute
+  AppFactoryPrintRoute: typeof AppFactoryPrintRoute
+  AppFactoryProductionRoute: typeof AppFactoryProductionRoute
+  AppFactoryShippingRoute: typeof AppFactoryShippingRoute
+  AppMasterCancelReasonsRoute: typeof AppMasterCancelReasonsRoute
+  AppMasterCarriersRoute: typeof AppMasterCarriersRoute
+  AppMasterChannelsRoute: typeof AppMasterChannelsRoute
+  AppMasterCompanyRoute: typeof AppMasterCompanyRoute
+  AppMasterCustomersRoute: typeof AppMasterCustomersRoute
+  AppMasterCutoffRoute: typeof AppMasterCutoffRoute
+  AppMasterImportRoute: typeof AppMasterImportRoute
+  AppMasterSkuMappingRoute: typeof AppMasterSkuMappingRoute
+  AppOrdersNewRoute: typeof AppOrdersNewRoute
+  AppOrdersUploadRoute: typeof AppOrdersUploadRoute
+  AppPlatformsLogsRoute: typeof AppPlatformsLogsRoute
+  AppPlatformsUnmappedSkuRoute: typeof AppPlatformsUnmappedSkuRoute
+  AppReportsEditsRoute: typeof AppReportsEditsRoute
+  AppReportsPendingRoute: typeof AppReportsPendingRoute
+  AppReportsReconcileRoute: typeof AppReportsReconcileRoute
+  AppReportsTaxRoute: typeof AppReportsTaxRoute
+  AppStockLedgerRoute: typeof AppStockLedgerRoute
+  AppStockReceiveRoute: typeof AppStockReceiveRoute
+  AppUsersAuditRoute: typeof AppUsersAuditRoute
+  AppUsersNotificationsRoute: typeof AppUsersNotificationsRoute
+  AppUsersRolesRoute: typeof AppUsersRolesRoute
+  AppAccountingIndexRoute: typeof AppAccountingIndexRoute
+  AppFactoryIndexRoute: typeof AppFactoryIndexRoute
+  AppMasterIndexRoute: typeof AppMasterIndexRoute
   AppOrdersIndexRoute: typeof AppOrdersIndexRoute
+  AppPlatformsIndexRoute: typeof AppPlatformsIndexRoute
+  AppReportsIndexRoute: typeof AppReportsIndexRoute
+  AppStockIndexRoute: typeof AppStockIndexRoute
+  AppUsersIndexRoute: typeof AppUsersIndexRoute
+  AppOrdersOrderIdEditRoute: typeof AppOrdersOrderIdEditRoute
+  AppOrdersOrderIdIndexRoute: typeof AppOrdersOrderIdIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
-  AppOrdersOrderIdRoute: AppOrdersOrderIdRoute,
+  AppAccountingCreditNotesRoute: AppAccountingCreditNotesRoute,
+  AppAccountingDocumentsRoute: AppAccountingDocumentsRoute,
+  AppAccountingReconcileRoute: AppAccountingReconcileRoute,
+  AppDashboardAccountingRoute: AppDashboardAccountingRoute,
+  AppDashboardFactoryRoute: AppDashboardFactoryRoute,
+  AppFactoryPrintRoute: AppFactoryPrintRoute,
+  AppFactoryProductionRoute: AppFactoryProductionRoute,
+  AppFactoryShippingRoute: AppFactoryShippingRoute,
+  AppMasterCancelReasonsRoute: AppMasterCancelReasonsRoute,
+  AppMasterCarriersRoute: AppMasterCarriersRoute,
+  AppMasterChannelsRoute: AppMasterChannelsRoute,
+  AppMasterCompanyRoute: AppMasterCompanyRoute,
+  AppMasterCustomersRoute: AppMasterCustomersRoute,
+  AppMasterCutoffRoute: AppMasterCutoffRoute,
+  AppMasterImportRoute: AppMasterImportRoute,
+  AppMasterSkuMappingRoute: AppMasterSkuMappingRoute,
+  AppOrdersNewRoute: AppOrdersNewRoute,
+  AppOrdersUploadRoute: AppOrdersUploadRoute,
+  AppPlatformsLogsRoute: AppPlatformsLogsRoute,
+  AppPlatformsUnmappedSkuRoute: AppPlatformsUnmappedSkuRoute,
+  AppReportsEditsRoute: AppReportsEditsRoute,
+  AppReportsPendingRoute: AppReportsPendingRoute,
+  AppReportsReconcileRoute: AppReportsReconcileRoute,
+  AppReportsTaxRoute: AppReportsTaxRoute,
+  AppStockLedgerRoute: AppStockLedgerRoute,
+  AppStockReceiveRoute: AppStockReceiveRoute,
+  AppUsersAuditRoute: AppUsersAuditRoute,
+  AppUsersNotificationsRoute: AppUsersNotificationsRoute,
+  AppUsersRolesRoute: AppUsersRolesRoute,
+  AppAccountingIndexRoute: AppAccountingIndexRoute,
+  AppFactoryIndexRoute: AppFactoryIndexRoute,
+  AppMasterIndexRoute: AppMasterIndexRoute,
   AppOrdersIndexRoute: AppOrdersIndexRoute,
+  AppPlatformsIndexRoute: AppPlatformsIndexRoute,
+  AppReportsIndexRoute: AppReportsIndexRoute,
+  AppStockIndexRoute: AppStockIndexRoute,
+  AppUsersIndexRoute: AppUsersIndexRoute,
+  AppOrdersOrderIdEditRoute: AppOrdersOrderIdEditRoute,
+  AppOrdersOrderIdIndexRoute: AppOrdersOrderIdIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -136,6 +1002,10 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SessionExpiredRoute: SessionExpiredRoute,
+  ForgotPasswordSentRoute: ForgotPasswordSentRoute,
+  ForgotPasswordIndexRoute: ForgotPasswordIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

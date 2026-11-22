@@ -1,0 +1,66 @@
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.statLink {
+  transition: border-color 120ms ease;
+
+  @mixin hover {
+    border-color: var(--mantine-primary-color-filled);
+  }
+}
+
+.alert {
+  display: flex;
+  gap: var(--mantine-spacing-sm);
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--mantine-radius-md);
+  text-align: left;
+}
+
+.printPaper {
+  background: var(--mantine-color-white);
+  color: var(--mantine-color-black);
+}
+
+.printPaperMono {
+  composes: printPaper;
+  font-family: var(--mantine-font-family-monospace);
+}
+
+/* Dashed "add new" tile in card grids */
+.addCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  border: 1px dashed var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-lg);
+  padding: var(--mantine-spacing-md);
+  text-align: center;
+
+  @mixin hover {
+    border-color: var(--mantine-primary-color-filled);
+  }
+}
+
+.columnChart {
+  overflow-x: auto;
+}
+
+.column {
+  border-radius: 4px 4px 0 0;
+}
+
+.barLabel {
+  flex: 0 0 96px;
+}
+
+.barValue {
+  flex: 0 0 auto;
+  min-width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

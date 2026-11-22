@@ -1,11 +1,12 @@
 import { Badge, type MantineColor } from '@mantine/core';
 import { ORDER_STATUS_LABEL_TH, type OrderStatus } from '@sahasa/shared';
 
-const STATUS_COLOR: Record<OrderStatus, MantineColor> = {
-  pending_review: 'gray',
+// Colors follow UI Prototype/pages/03-01_order-list.html
+export const ORDER_STATUS_COLOR: Record<OrderStatus, MantineColor> = {
+  pending_review: 'orange',
   confirmed: 'blue',
-  factory_accepted: 'gold',
-  partially_shipped: 'orange',
+  factory_accepted: 'gray',
+  partially_shipped: 'gold',
   shipped: 'cyan',
   delivered: 'green',
   cancelled: 'brand',
@@ -13,7 +14,7 @@ const STATUS_COLOR: Record<OrderStatus, MantineColor> = {
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return (
-    <Badge color={STATUS_COLOR[status]} variant="light">
+    <Badge color={ORDER_STATUS_COLOR[status]} variant="light" radius="xl" tt="none" fw={500}>
       {ORDER_STATUS_LABEL_TH[status]}
     </Badge>
   );
