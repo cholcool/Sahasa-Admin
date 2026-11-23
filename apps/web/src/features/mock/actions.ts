@@ -1,6 +1,8 @@
 import type { Channel } from '@sahasa/shared';
 import { dayjs } from '@/lib/dayjs';
-import { isMarketplace, MOCK_CARRIERS, shippingFeeFor } from './catalog';
+import { isMarketplace, MOCK_CARRIERS } from './catalog';
+import type { PriceRule, ShippingRule } from './pricing';
+import { orderShipping } from './selectors';
 import { channelText } from './generate';
 import { updateMockDb } from './store';
 import type {
@@ -171,7 +173,12 @@ export function createOrder(input: OrderInput): string {
       customer?.addresses.find((a) => a.id === input.addressId) ??
       customer?.addresses.find((a) => a.isDefault);
     const at = nowThai();
-    const shippingFee = shippingFeeFor(input.channel, input.carrierId);
+    const shippingFee = orderShipping(db, {
+      channel: input.channel,
+      carrierId: input.carrierId,
+      address: address?.text ?? '',
+      productIds: input.lines.filter((l) => l.qty > 0).map((l) => l.productId),
+    }).fee;
     const order: MockOrder = {
       orderNumber,
       channel: input.channel,
@@ -243,7 +250,12 @@ export function updateOrder(orderNumber: string, edit: OrderEdit) {
       o.lines = edit.lines.filter((l) => l.qty > 0);
       o.carrierId = edit.carrierId;
       o.roundDate = edit.roundDate;
-      o.shippingFee = shippingFeeFor(o.channel, o.carrierId);
+      o.shippingFee = orderShipping(db, {
+        channel: o.channel,
+        carrierId: o.carrierId,
+        address: o.address,
+        productIds: o.lines.map((l) => l.productId),
+      }).fee;
       o.total = totalOf(o.lines, o.shippingFee);
       if (o.status === 'factory_accepted') o.editedAfterAccept = true;
       if (changes.length > 0) {
@@ -371,5 +383,20 @@ export function saveProduct(product: MockProduct) {
     const i = db.products.findIndex((p) => p.id === product.id);
     if (i >= 0) db.products[i] = product;
     else db.products.push(product);
+  });
+}
+
+/** Change one price rule's price (Project Detail › ราคาสินค้า) */
+export function savePriceRule(id: string, price: PriceRule['price']) {
+  updateMockDb((db) => {
+    const rule = db.priceRules.find((r) => r.id === id);
+    if (rule) rule.price = price;
+  });
+}
+
+export function saveShippingRule(id: string, fee: ShippingRule['fee']) {
+  updateMockDb((db) => {
+    const rule = db.shippingRules.find((r) => r.id === id);
+    if (rule) rule.fee = fee;
   });
 }

@@ -128,8 +128,8 @@ function ProductionSummaryPage() {
               <Table.Tr>
                 <Table.Th>ขนส่ง</Table.Th>
                 <Table.Th ta="right">จำนวน Order</Table.Th>
-                <Table.Th ta="right">เต้าหู้ (แพ็ค)</Table.Th>
-                <Table.Th ta="right">น้ำจิ้ม (ขวด)</Table.Th>
+                <Table.Th ta="right">เต้าหู้ (ชิ้น)</Table.Th>
+                <Table.Th ta="right">น้ำจิ้ม (ชุด)</Table.Th>
                 <Table.Th>ใบปะหน้า</Table.Th>
               </Table.Tr>
             </Table.Thead>

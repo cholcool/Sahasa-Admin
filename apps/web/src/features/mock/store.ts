@@ -42,6 +42,8 @@ export function isMockDb(value: unknown): value is MockDb {
       'orders',
       'customers',
       'products',
+      'priceRules',
+      'shippingRules',
       'carriers',
       'users',
       'documents',

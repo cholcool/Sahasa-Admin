@@ -18,6 +18,7 @@ import { useMemo, useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PRICE_GROUPS } from '@/features/mock/pricing';
 import { useMockDb } from '@/features/mock/store';
 import type { MockCustomer } from '@/features/mock/types';
 import { NewCustomerModal } from '@/features/orders/components/CustomerModals';
@@ -154,6 +155,16 @@ function CustomersPage() {
                 ),
               },
               {
+                accessor: 'priceGroup',
+                title: 'ราคาพิเศษ',
+                render: (r) =>
+                  r.priceGroup ? (
+                    <StatusBadge color="gold">{PRICE_GROUPS[r.priceGroup]}</StatusBadge>
+                  ) : (
+                    '—'
+                  ),
+              },
+              {
                 accessor: 'addresses',
                 title: 'ที่อยู่',
                 textAlign: 'right',
@@ -203,6 +214,9 @@ function CustomersPage() {
                 {viewing.billing}
               </StatusBadge>
               <StatusBadge>{CHANNEL_LABEL_TH[viewing.channel]}</StatusBadge>
+              {viewing.priceGroup && (
+                <StatusBadge color="gold">{PRICE_GROUPS[viewing.priceGroup]}</StatusBadge>
+              )}
               <Text size="xs" c="dimmed">
                 {viewStats?.count ?? 0} Order · {formatBaht(viewStats?.total ?? 0)}
               </Text>

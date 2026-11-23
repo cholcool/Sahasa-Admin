@@ -34,7 +34,7 @@ function StockReceivePage() {
   const today = todayIso();
   const [type, setType] = useState('รับเข้าจากการผลิต');
   const [product, setProduct] = useState<string | null>(db.products[0]?.id ?? null);
-  const [qty, setQty] = useState<number | string>(180);
+  const [qty, setQty] = useState<number | string>(500);
   const p = db.products.find((x) => x.id === product);
   const unit = p?.unit ?? '';
   const isReceive = type === 'รับเข้าจากการผลิต';

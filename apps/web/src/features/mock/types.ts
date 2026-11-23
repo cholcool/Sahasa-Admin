@@ -1,5 +1,6 @@
 import type { Channel, OrderStatus } from '@sahasa/shared';
 import type { DeliveryState, PaymentState } from '@/features/orders/labels';
+import type { PriceGroup, PriceRule, ShippingRule } from './pricing';
 
 /**
  * Mock database kept in the browser until the real MariaDB tables exist.
@@ -11,22 +12,14 @@ export type Billing = 'VAT' | 'NOVAT';
 export type PaymentMethod = 'platform' | 'transfer' | 'cash';
 export type ProductKind = 'tofu' | 'sauce';
 
-/** Price per channel group (Line/Facebook/โทร share one price) */
-export interface ChannelPrices {
-  storefront: number;
-  shopee: number;
-  tiktok: number;
-  lazada: number;
-  lineFb: number;
-}
-
 export interface MockProduct {
   id: string;
   name: string;
   shortName: string;
   kind: ProductKind;
   unit: string;
-  prices: ChannelPrices;
+  /** List price per unit; real prices come from priceRules */
+  basePrice: number;
   active: boolean;
 }
 
@@ -58,6 +51,8 @@ export interface MockCustomer {
   addresses: MockAddress[];
   /** Regular customer of a manual channel (orders repeat) vs one-off marketplace buyer */
   regular: boolean;
+  /** Customer-specific tofu price (franchise, wholesale, JFB) */
+  priceGroup?: PriceGroup;
 }
 
 export interface MockUser {
@@ -221,6 +216,8 @@ export interface MockDb {
   /** True after "clear all data": transactions removed, master data kept */
   cleared: boolean;
   products: MockProduct[];
+  priceRules: PriceRule[];
+  shippingRules: ShippingRule[];
   carriers: MockCarrier[];
   customers: MockCustomer[];
   users: MockUser[];

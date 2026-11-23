@@ -37,7 +37,7 @@ function StockOnHandPage() {
   const ITEMS = db.products.map((p) => ({
     name: p.name,
     unit: p.unit,
-    reorderPoint: p.kind === 'tofu' ? 80 : 100,
+    reorderPoint: p.kind === 'tofu' ? 500 : 30,
     onHand: stockOnHand(db, p.id, now),
     reserved: stockReserved(db, p.id),
   }));

@@ -12,12 +12,19 @@ import {
   MOCK_USERS,
   PLATFORM_FEE_RATE,
   PLATFORM_OF,
-  priceKey,
   ROADS,
   SHOP_NAMES,
-  shippingFeeFor,
+  SHOP_PRICE_GROUPS,
   SOUTH_AREA_COUNT,
 } from './catalog';
+import {
+  DEFAULT_PRICE_RULES,
+  DEFAULT_SHIPPING_RULES,
+  type PriceGroup,
+  shippingFee as shippingFeeOf,
+  TOFU_ID,
+  unitPrice,
+} from './pricing';
 import { createRng, type Rng } from './random';
 import type {
   CarrierId,
@@ -36,7 +43,7 @@ import type {
   PlatformName,
 } from './types';
 
-export const MOCK_DB_VERSION = 1;
+export const MOCK_DB_VERSION = 2;
 
 export const DEFAULT_SETTINGS: MockSettings = {
   seed: 20261101,
@@ -79,27 +86,31 @@ function generateCustomers(rng: Rng): MockCustomer[] {
   const customers: MockCustomer[] = [];
   const manual: Channel[] = ['line', 'line', 'facebook', 'phone', 'storefront'];
   SHOP_NAMES.forEach((name, i) => {
-    const isCompany = name.startsWith('บจก.') || name.startsWith('หจก.');
-    const billing = isCompany || rng.chance(0.2) ? 'VAT' : 'NOVAT';
+    const priceGroup: PriceGroup | undefined = SHOP_PRICE_GROUPS[name];
+    const isCompany = /^(บจก\.|หจก\.|บริษัท)/.test(name);
+    const wholesale = priceGroup === 'wholesale_a' || priceGroup === 'wholesale_b';
+    const billing = !wholesale && (isCompany || rng.chance(0.2)) ? 'VAT' : 'NOVAT';
     const tel = phone(rng);
     const addrCount = rng.int(1, 3);
     customers.push({
       id: `C-${String(i + 1).padStart(4, '0')}`,
       name,
-      channel: rng.pick(manual),
+      channel: priceGroup ? rng.pick(['line', 'phone'] as const) : rng.pick(manual),
       phone: tel,
       billing,
       // A couple of VAT customers without a tax ID show the "missing tax ID" error in accounting
       taxId:
-        billing === 'VAT' && rng.chance(0.85)
+        billing === 'VAT' && (priceGroup !== undefined || rng.chance(0.85))
           ? `0${rng.int(100000000000, 999999999999)}`
           : undefined,
       regular: true,
+      priceGroup,
       addresses: Array.from({ length: addrCount }, (_, j) => ({
         id: `A-${i + 1}-${j + 1}`,
         name: j === 0 ? name : `${rng.pick(FIRST_NAMES)} (สาขา ${j + 1})`,
         phone: j === 0 ? tel : phone(rng),
-        text: address(rng, true),
+        // Most shops are in the south; some are in other regions (shipping 100)
+        text: address(rng, rng.chance(0.75)),
         isDefault: j === 0,
       })),
     });
@@ -141,24 +152,53 @@ function pickCarrier(rng: Rng, channel: Channel, addr: string): CarrierId {
     : rng.weighted(['nim', 'fuze', 'inter'] as const, [45, 35, 20]);
 }
 
-function pickLines(rng: Rng, channel: Channel): MockOrderLine[] {
-  const key = priceKey(channel);
+/** Tofu pieces per order by channel (Line/Facebook/Shopee/TikTok order in tens from 10) */
+function tofuQty(rng: Rng, channel: Channel, group?: PriceGroup): number {
+  if (group === 'jfb') return rng.int(4, 12) * 50;
+  if (group === 'franchise') return rng.int(3, 8) * 50;
+  if (group) return rng.int(5, 15) * 20;
+  switch (channel) {
+    case 'lazada':
+      return rng.weighted([1, 2, 3, 4, 5, 6, 8, 10], [18, 20, 15, 12, 12, 8, 8, 7]);
+    case 'shopee':
+      return rng.weighted([10, 20, 30, 40, 50, 60], [35, 25, 15, 12, 8, 5]);
+    case 'tiktok':
+      return rng.weighted([10, 20, 30], [60, 30, 10]);
+    default:
+      return rng.weighted([10, 20, 30, 40, 50, 60, 80, 100], [25, 20, 15, 12, 10, 8, 6, 4]);
+  }
+}
+
+function pickLines(rng: Rng, channel: Channel, group?: PriceGroup): MockOrderLine[] {
   const [tofu, sauce] = MOCK_PRODUCTS;
   if (!tofu || !sauce) return [];
-  const big = !isMarketplace(channel);
   const lines: MockOrderLine[] = [];
-  const tofuQty = big ? rng.int(2, 12) : rng.weighted([1, 2, 3, 4], [40, 35, 15, 10]);
-  if (rng.chance(0.92))
-    lines.push({ productId: tofu.id, name: tofu.name, qty: tofuQty, price: tofu.prices[key] });
-  if (lines.length === 0 || rng.chance(0.45)) {
+  // Companies with their own price buy tofu only; others sometimes buy sauce only
+  const sauceOnly = !group && rng.chance(0.07);
+  if (!sauceOnly)
+    lines.push({
+      productId: tofu.id,
+      name: tofu.name,
+      qty: tofuQty(rng, channel, group),
+      price: 0,
+    });
+  if (sauceOnly || (!group && rng.chance(0.4))) {
     lines.push({
       productId: sauce.id,
       name: sauce.name,
-      qty: big ? rng.int(1, 6) : rng.int(1, 3),
-      price: sauce.prices[key],
+      qty: rng.weighted([1, 2, 3, 4], [50, 30, 12, 8]),
+      price: 0,
     });
   }
   return lines;
+}
+
+/** Apply the price rules to every line (after any quantity edits) */
+function priceLines(lines: MockOrderLine[], channel: Channel, group?: PriceGroup) {
+  for (const l of lines) {
+    const base = MOCK_PRODUCTS.find((p) => p.id === l.productId)?.basePrice ?? 0;
+    l.price = unitPrice(DEFAULT_PRICE_RULES, l.productId, channel, l.qty, group, base);
+  }
 }
 
 function orderHour(rng: Rng, channel: Channel): number {
@@ -234,8 +274,15 @@ function buildOrder(rng: Rng, date: string, today: string, customers: MockCustom
   }
 
   const carrierId = pickCarrier(rng, channel, addr?.text ?? '');
-  const lines = pickLines(rng, channel);
-  const shippingFee = shippingFeeFor(channel, carrierId);
+  const group = customer.priceGroup;
+  const lines = pickLines(rng, channel, group);
+  priceLines(lines, channel, group);
+  const shippingFee = shippingFeeOf(DEFAULT_SHIPPING_RULES, {
+    channel,
+    pickUp: carrierId === 'store',
+    address: addr?.text ?? '',
+    productIds: lines.map((l) => l.productId),
+  }).fee;
   const total = sum(lines) + shippingFee;
   const paymentMethod = marketplace
     ? 'platform'
@@ -266,12 +313,13 @@ function buildOrder(rng: Rng, date: string, today: string, customers: MockCustom
 
   // Some manual orders get a quantity fix soon after they are keyed in
   const firstLine = lines[0];
-  if (!marketplace && firstLine && firstLine.qty > 1 && rng.chance(0.12)) {
+  const step = firstLine?.productId === TOFU_ID ? 10 : 1;
+  if (!marketplace && firstLine && firstLine.qty > step && rng.chance(0.12)) {
     history.push({
       at: addMinutes(orderedAt, rng.int(3, 30)),
       by: seller.username,
       type: 'edited',
-      text: `${seller.username} แก้ไขจำนวน ${firstLine.name}: ${firstLine.qty - 1} → ${firstLine.qty}`,
+      text: `${seller.username} แก้ไขจำนวน ${firstLine.name}: ${firstLine.qty - step} → ${firstLine.qty}`,
     });
   }
 
@@ -334,7 +382,8 @@ function buildOrder(rng: Rng, date: string, today: string, customers: MockCustom
   }
   if (status === 'partially_shipped' && lines[0]) {
     const first = lines[0];
-    first.shippedQty = Math.max(0, first.qty - rng.int(1, Math.min(2, first.qty)));
+    const missing = first.productId === TOFU_ID ? rng.int(1, 3) * 5 : 1;
+    first.shippedQty = Math.max(0, first.qty - Math.min(missing, first.qty));
     history.push({
       at: addMinutes(shippedAt ?? orderedAt, 5),
       by: worker.username,
@@ -371,7 +420,8 @@ function buildOrder(rng: Rng, date: string, today: string, customers: MockCustom
   const editedAfterAccept = status === 'factory_accepted' && !marketplace && rng.chance(0.15);
   if (editedAfterAccept && acceptedAt && lines[0]) {
     const old = lines[0].qty;
-    lines[0].qty += 1;
+    lines[0].qty += lines[0].productId === TOFU_ID ? 10 : 1;
+    priceLines(lines, channel, group);
     history.push({
       at: addMinutes(acceptedAt, rng.int(5, 40)),
       by: seller.username,
@@ -566,7 +616,8 @@ function generateSettlements(rng: Rng, orders: MockOrder[], today: string): Mock
     if (paidDate > today) continue;
     const amount = o.total;
     const fee = -Math.round(amount * rate * 100) / 100;
-    const shipping = o.shippingFee > 0 ? -40 : 0;
+    // The platform keeps the shipping fee the buyer paid
+    const shipping = -o.shippingFee;
     const expected = Math.round((amount + fee + shipping) * 100) / 100;
     const received = rng.chance(0.015)
       ? Math.round((expected - rng.int(10, 60)) * 100) / 100
@@ -661,7 +712,7 @@ function generateStockReceipts(
       id: `R-${p.id}-open`,
       at: thaiTime(from, 6, 0),
       productId: p.id,
-      qty: p.kind === 'tofu' ? 400 : 200,
+      qty: p.kind === 'tofu' ? 2000 : 150,
       lot: 'ยอดยกมา',
       by: 'admin',
     });
@@ -720,6 +771,8 @@ export function generateMockDb(
     settings,
     cleared: false,
     products: structuredClone(MOCK_PRODUCTS),
+    priceRules: structuredClone(DEFAULT_PRICE_RULES),
+    shippingRules: structuredClone(DEFAULT_SHIPPING_RULES),
     carriers: structuredClone(MOCK_CARRIERS),
     customers,
     users: structuredClone(MOCK_USERS).map((u) => ({

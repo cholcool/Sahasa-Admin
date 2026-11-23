@@ -17,7 +17,14 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { isMarketplace } from '@/features/mock/catalog';
 import { updateOrder } from '@/features/mock/actions';
-import { findOrder, productOptions, roundChoices, roundText } from '@/features/mock/selectors';
+import {
+  findOrder,
+  linePrice,
+  orderShipping,
+  productOptions,
+  roundChoices,
+  roundText,
+} from '@/features/mock/selectors';
 import { useMockDb } from '@/features/mock/store';
 import type { CarrierId, MockOrder } from '@/features/mock/types';
 import { LineItemsEditor, type EditableLine } from '@/features/orders/components/LineItemsEditor';
@@ -54,8 +61,8 @@ function EditOrderForm({ order }: { order: MockOrder }) {
   const db = useMockDb();
   const navigate = useNavigate();
   const orderId = order.orderNumber;
-  const products = productOptions(db.products, order.channel);
   const customer = db.customers.find((c) => c.id === order.customerId);
+  const products = productOptions(db, order.channel, customer?.priceGroup);
   const currentAddress = customer?.addresses.find((a) => a.text === order.address);
 
   const [lines, setLines] = useState<EditableLine[]>(() =>
@@ -75,7 +82,14 @@ function EditOrderForm({ order }: { order: MockOrder }) {
   const marketplace = isMarketplace(order.channel);
 
   const before = order.total;
-  const after = orderTotals(lines, order.shippingFee).total;
+  const newAddress = customer?.addresses.find((a) => a.id === addressId)?.text ?? order.address;
+  const newShipping = orderShipping(db, {
+    channel: order.channel,
+    carrierId: carrier,
+    address: newAddress,
+    productIds: lines.filter((l) => l.qty > 0).map((l) => l.productId),
+  }).fee;
+  const after = orderTotals(lines, newShipping).total;
   const changes = lines
     .map((l) => ({ line: l, old: order.lines.find((o) => o.productId === l.productId)?.qty ?? 0 }))
     .filter((c) => c.old !== c.line.qty);
@@ -139,7 +153,21 @@ function EditOrderForm({ order }: { order: MockOrder }) {
             <SectionCard title="สินค้า">
               <LineItemsEditor
                 lines={lines}
-                onChange={setLines}
+                onChange={(ls) =>
+                  setLines(
+                    ls.map((l) => {
+                      // Edit keeps the price rules: quantity changes move the tier price
+                      const tier = linePrice(
+                        db,
+                        l.productId,
+                        order.channel,
+                        l.qty,
+                        customer?.priceGroup,
+                      );
+                      return { ...l, basePrice: tier, price: tier };
+                    }),
+                  )
+                }
                 products={products}
                 editablePrice={false}
                 disabled={locked}
