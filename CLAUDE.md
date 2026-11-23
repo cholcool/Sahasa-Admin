@@ -32,7 +32,7 @@ pnpm monorepo · Node 22 (`nvm use`, เครื่องอาจมี Node 2
 
 ## Git
 
-- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `poom` ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
+- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `fineart09` (ของ poom) ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
 - **commit เฉพาะเมื่อผู้ใช้สั่งเท่านั้น** และห้าม push, merge, rebase หรือ force-push เอง
 - ห้ามแก้ไขหรือ commit ลง `main` และห้ามแตะ branch ของอีกคน **cholcool เป็นคนเดียวที่ merge เข้า `main`**
 - รูปแบบข้อความ commit: `[<app>][<module>]: <สิ่งที่ทำ เป็นภาษาอังกฤษ>`
