@@ -12,6 +12,9 @@ export const orderListQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   status: orderStatusSchema.optional(),
   channel: channelSchema.optional(),
+  /** วันที่สั่ง (order_date) รูปแบบ YYYY-MM-DD (เวลาไทย) */
+  orderDateFrom: z.iso.date().optional(),
+  orderDateTo: z.iso.date().optional(),
   /** วันที่จัดส่ง รูปแบบ YYYY-MM-DD (เวลาไทย) */
   shipDateFrom: z.iso.date().optional(),
   shipDateTo: z.iso.date().optional(),
