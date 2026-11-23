@@ -1,25 +1,26 @@
 import type { Channel } from '@sahasa/shared';
-import type { CarrierId, ChannelPrices, MockCarrier, MockProduct, MockUser } from './types';
+import type { PriceGroup } from './pricing';
+import type { MockCarrier, MockProduct, MockUser } from './types';
 
 // Fixed master data and word pools for the mock generator (all fictional)
 
 export const MOCK_PRODUCTS: MockProduct[] = [
   {
     id: 'PRD-001',
-    name: 'เต้าหู้คลองแงะ แพ็ค 10 ชิ้น',
+    name: 'เต้าหู้คลองแงะ',
     shortName: 'เต้าหู้',
     kind: 'tofu',
-    unit: 'แพ็ค',
-    prices: { storefront: 170, shopee: 190, tiktok: 189, lazada: 195, lineFb: 190 },
+    unit: 'ชิ้น',
+    basePrice: 45,
     active: true,
   },
   {
     id: 'PRD-002',
-    name: 'น้ำจิ้ม 400g',
+    name: 'น้ำจิ้มมะขามน้ำตาลโตนด',
     shortName: 'น้ำจิ้ม',
     kind: 'sauce',
-    unit: 'ขวด',
-    prices: { storefront: 115, shopee: 125, tiktok: 125, lazada: 129, lineFb: 125 },
+    unit: 'ชุด',
+    basePrice: 75,
     active: true,
   },
 ];
@@ -66,25 +67,6 @@ export const MOCK_USERS: MockUser[] = [
   { id: 'U07', username: 'acc01', name: 'อรุณี บัญชี', role: 'Accounting', active: true },
   { id: 'U08', username: 'sales03', name: 'ปิยะ ลาออก', role: 'Sales', active: false },
 ];
-
-/** Price group for a channel */
-export function priceKey(channel: Channel): keyof ChannelPrices {
-  switch (channel) {
-    case 'storefront':
-    case 'shopee':
-    case 'tiktok':
-    case 'lazada':
-      return channel;
-    default:
-      return 'lineFb';
-  }
-}
-
-/** Shipping fee charged to the customer (storefront pick-up is free) — pending Q2–Q5 */
-export function shippingFeeFor(channel: Channel, carrierId: CarrierId): number {
-  if (channel === 'storefront' || carrierId === 'store') return 0;
-  return 50;
-}
 
 export const MARKETPLACE_CHANNELS = ['shopee', 'lazada', 'tiktok'] as const satisfies Channel[];
 
@@ -179,7 +161,19 @@ export const SHOP_NAMES = [
   'ร้านป้าจิ๋ว',
   'บจก. สงขลาโฮลเซล',
   'ร้านข้าวมันไก่ตาโต',
+  'บริษัท แฟรนไชส์ สมิทธ์ จำกัด',
+  'บริษัท เจเอฟบี คิทเช่น จำกัด',
 ];
+
+/** Shops with their own tofu price (Project Detail › ราคาสินค้า rows 6–9) */
+export const SHOP_PRICE_GROUPS: Record<string, PriceGroup> = {
+  'บริษัท แฟรนไชส์ สมิทธ์ จำกัด': 'franchise',
+  'บริษัท เจเอฟบี คิทเช่น จำกัด': 'jfb',
+  ร้านเจ๊หมวย: 'wholesale_a',
+  ร้านข้าวต้มโต้รุ่ง: 'wholesale_a',
+  ร้านก๋วยเตี๋ยวเรือป้าแดง: 'wholesale_b',
+  มินิมาร์ทบ้านพรุ: 'wholesale_b',
+};
 
 export const ROADS = [
   'ถ.เพชรเกษม',
@@ -207,6 +201,9 @@ export const AREAS = [
   'แขวงบางนา เขตบางนา กรุงเทพฯ 10260',
   'ต.บางกระสอ อ.เมือง จ.นนทบุรี 11000',
   'ต.ช้างเผือก อ.เมือง จ.เชียงใหม่ 50300',
+  'ต.ในเมือง อ.เมือง จ.ขอนแก่น 40000',
+  'ต.ในเมือง อ.เมือง จ.นครราชสีมา 30000',
+  'ต.ประตูชัย อ.พระนครศรีอยุธยา จ.พระนครศรีอยุธยา 13000',
 ];
 
 /** Areas reachable by van/bus (southern provinces) */

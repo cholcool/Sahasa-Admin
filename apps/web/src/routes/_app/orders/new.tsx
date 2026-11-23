@@ -22,9 +22,22 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { createOrder } from '@/features/mock/actions';
-import { shippingFeeFor } from '@/features/mock/catalog';
-import { productOptions, roundChoices, roundText } from '@/features/mock/selectors';
+import {
+  minOrderQty,
+  PRICE_GROUPS,
+  REGION_LABEL,
+  regionOf,
+  TOFU_ID,
+} from '@/features/mock/pricing';
+import {
+  linePrice,
+  orderShipping,
+  productOptions,
+  roundChoices,
+  roundText,
+} from '@/features/mock/selectors';
 import { getMockDb, useMockDb } from '@/features/mock/store';
+import type { PriceGroup } from '@/features/mock/pricing';
 import type { Billing, CarrierId } from '@/features/mock/types';
 import {
   AddressPickerModal,
@@ -71,23 +84,47 @@ function CreateOrderPage() {
   const [carrier, setCarrier] = useState<CarrierId>('nim');
   const [round, setRound] = useState<string>(nextRound);
   const [inserted, setInserted] = useState(false);
-  const products = productOptions(db.products, channel);
+  const group = customer?.priceGroup;
+  const products = productOptions(db, channel, group);
+
+  /** Tier price follows qty/channel/customer; a price typed by hand is kept */
+  const reprice = (
+    ls: EditableLine[],
+    ch: ManualChannel,
+    g: PriceGroup | undefined,
+  ): EditableLine[] =>
+    ls.map((l) => {
+      const tier = linePrice(db, l.productId, ch, l.qty, g);
+      return { ...l, basePrice: tier, price: l.price === l.basePrice ? tier : l.price };
+    });
   const [lines, setLines] = useState<EditableLine[]>(() =>
-    products.slice(0, 1).map((p) => ({
-      productId: p.id,
-      name: p.name,
-      unit: p.unit,
-      basePrice: p.price,
-      qty: 1,
-      price: p.price,
-    })),
+    reprice(
+      products.slice(0, 1).map((p) => ({
+        productId: p.id,
+        name: p.name,
+        unit: p.unit,
+        basePrice: p.price,
+        qty: 10,
+        price: p.price,
+      })),
+      'line',
+      customers.find((c) => c.channel === 'line')?.priceGroup,
+    ),
   );
   const [cutoffOpened, cutoff] = useDisclosure(false);
   const [custOpened, cust] = useDisclosure(false);
   const [newCustOpened, newCust] = useDisclosure(false);
   const [addrOpened, addr] = useDisclosure(false);
-  const shippingFee = shippingFeeFor(channel, carrier);
-  const totals = orderTotals(lines, shippingFee);
+  const shipping = orderShipping(db, {
+    channel,
+    carrierId: carrier,
+    address: address?.text ?? '',
+    productIds: lines.filter((l) => l.qty > 0).map((l) => l.productId),
+  });
+  const totals = orderTotals(lines, shipping.fee);
+  const tofuLine = lines.find((l) => l.productId === TOFU_ID);
+  const minTofu = minOrderQty(db.priceRules, TOFU_ID, channel);
+  const belowMinimum = !group && tofuLine !== undefined && tofuLine.qty < minTofu;
   const rounds = roundChoices(db, today, 0, 5).filter(
     (d) => d >= nextRound || (inserted && d === today),
   );
@@ -98,23 +135,16 @@ function CreateOrderPage() {
     setCustomerId(id);
     setAddressId(undefined);
     if (c) setBilling(c.billing);
+    setLines((ls) => reprice(ls, channel, c?.priceGroup));
   };
 
   const changeChannel = (next: ManualChannel) => {
     setChannel(next);
-    // Re-price lines for the new channel; keep prices the user typed by hand
-    const priced = productOptions(db.products, next);
-    setLines((ls) =>
-      ls.map((l) => {
-        const p = priced.find((x) => x.id === l.productId);
-        if (!p) return l;
-        return { ...l, basePrice: p.price, price: l.price === l.basePrice ? p.price : l.price };
-      }),
-    );
+    setLines((ls) => reprice(ls, next, group));
     if (next === 'storefront') setCarrier('store');
   };
 
-  const canSave = Boolean(customer) && lines.some((l) => l.qty > 0);
+  const canSave = Boolean(customer) && lines.some((l) => l.qty > 0) && !belowMinimum;
   const save = () => {
     if (!customer) return;
     const orderNumber = createOrder({
@@ -248,10 +278,24 @@ function CreateOrderPage() {
             </SectionCard>
 
             <SectionCard title="สินค้า">
-              <LineItemsEditor lines={lines} onChange={setLines} products={products} />
+              <LineItemsEditor
+                lines={lines}
+                onChange={(ls) => setLines(reprice(ls, channel, group))}
+                products={products}
+              />
+              {group && (
+                <Alert color="blue" variant="light" mt="xs">
+                  ลูกค้ามีราคาพิเศษ: {PRICE_GROUPS[group]}
+                </Alert>
+              )}
+              {belowMinimum && (
+                <Alert color="orange" variant="light" mt="xs">
+                  ช่องทาง {CHANNEL_LABEL_TH[channel]} สั่งเต้าหู้ขั้นต่ำ {minTofu} ชิ้น
+                </Alert>
+              )}
               <Text size="xs" c="dimmed" mt="xs">
-                แก้จำนวนและราคาต่อหน่วยได้ทุกรายการ · กรอบสีแดง = ราคาต่างจากราคาตั้ง ·
-                วิธีคิดราคาและค่าส่งของช่องทาง Manual รอยืนยัน (Q2–Q5)
+                ราคาต่อหน่วยคิดตามจำนวน ช่องทาง และกลุ่มลูกค้า (Project Detail › ราคาสินค้า) · แก้ราคาเองได้ ·
+                กรอบสีแดง = ราคาต่างจากราคาตั้ง
               </Text>
             </SectionCard>
 
@@ -314,6 +358,11 @@ function CreateOrderPage() {
               <Divider />
               <SummaryRow label="ยอดสินค้า" value={formatBaht(totals.items)} />
               <SummaryRow label="ค่าส่ง" value={formatBaht(totals.shipping)} />
+              <Text size="xs" c="dimmed">
+                {shipping.rule
+                  ? `${shipping.rule.condition}${address ? ` · ${REGION_LABEL[regionOf(address.text)]}` : ''}`
+                  : 'ไม่คิดค่าส่ง (รับที่หน้าร้าน)'}
+              </Text>
               <Divider />
               <SummaryRow label="ยอดรวม" value={<b>{formatBaht(totals.total)}</b>} />
               <Button fullWidth mt="sm" onClick={save} disabled={!canSave}>

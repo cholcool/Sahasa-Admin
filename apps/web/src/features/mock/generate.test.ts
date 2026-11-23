@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clearTransactions, DEFAULT_SETTINGS, diffDays, generateMockDb } from './generate';
+import { shippingFee, TOFU_ID, unitPrice } from './pricing';
 
 const TODAY = '2026-11-23';
 const db = generateMockDb(DEFAULT_SETTINGS, TODAY);
@@ -82,6 +83,50 @@ describe('generateMockDb', () => {
     const orderNumbers = new Set(db.orders.map((o) => o.orderNumber));
     expect(db.documents.every((d) => orderNumbers.has(d.orderNumber))).toBe(true);
     expect(db.documents.length).toBeGreaterThan(0);
+  });
+
+  it('ราคาทุกบรรทัดตรงกับกติการาคาของช่องทาง/กลุ่มลูกค้า', () => {
+    const groupOf = new Map(db.customers.map((c) => [c.id, c.priceGroup]));
+    const wrong = db.orders.flatMap((o) =>
+      o.lines.filter(
+        (l) =>
+          l.price !==
+          unitPrice(db.priceRules, l.productId, o.channel, l.qty, groupOf.get(o.customerId)),
+      ),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it('ค่าส่งตรงกับกติกาค่าขนส่ง', () => {
+    const wrong = db.orders.filter(
+      (o) =>
+        o.shippingFee !==
+        shippingFee(db.shippingRules, {
+          channel: o.channel,
+          pickUp: o.carrierId === 'store',
+          address: o.address,
+          productIds: o.lines.map((l) => l.productId),
+        }).fee,
+    );
+    expect(wrong.map((o) => o.orderNumber)).toEqual([]);
+  });
+
+  it('เต้าหู้ช่องทาง Line/Facebook/Shopee/TikTok สั่งตั้งแต่ 10 ชิ้น', () => {
+    const groupOf = new Map(db.customers.map((c) => [c.id, c.priceGroup]));
+    const small = db.orders.filter(
+      (o) =>
+        o.channel !== 'lazada' &&
+        !groupOf.get(o.customerId) &&
+        o.lines.some((l) => l.productId === TOFU_ID && l.qty < 10),
+    );
+    expect(small).toEqual([]);
+  });
+
+  it('มีลูกค้าราคาพิเศษครบ 4 กลุ่ม และมี Order', () => {
+    const groups = new Set(db.customers.map((c) => c.priceGroup).filter(Boolean));
+    expect(groups.size).toBe(4);
+    const special = new Set(db.customers.filter((c) => c.priceGroup).map((c) => c.id));
+    expect(db.orders.some((o) => special.has(o.customerId))).toBe(true);
   });
 
   it('ล้างข้อมูลแล้วเหลือข้อมูลหลัก', () => {

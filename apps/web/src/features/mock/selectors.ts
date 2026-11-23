@@ -1,6 +1,7 @@
 import type { Channel, OrderStatus } from '@sahasa/shared';
 import { dayjs, formatThaiDate } from '@/lib/dayjs';
-import { MOCK_CARRIERS, priceKey } from './catalog';
+import { MOCK_CARRIERS } from './catalog';
+import { type PriceGroup, shippingFee, unitPrice } from './pricing';
 import type { CarrierId, MockDb, MockOrder, MockProduct } from './types';
 
 // Read-only helpers that turn the mock database into what each page shows
@@ -157,11 +158,41 @@ export function stockReserved(db: MockDb, productId: string): number {
     );
 }
 
-/** Products priced for one channel, for the create/edit order forms */
-export function productOptions(products: MockProduct[], channel: Channel) {
-  return products
+/** Products priced for a channel/customer at their first order quantity, for the order forms */
+export function productOptions(db: MockDb, channel: Channel, group?: PriceGroup | null) {
+  return db.products
     .filter((p) => p.active)
-    .map((p) => ({ id: p.id, name: p.name, unit: p.unit, price: p.prices[priceKey(channel)] }));
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      unit: p.unit,
+      price: unitPrice(db.priceRules, p.id, channel, 1, group, p.basePrice),
+    }));
+}
+
+/** Unit price for a line from the price rules */
+export function linePrice(
+  db: MockDb,
+  productId: string,
+  channel: Channel,
+  qty: number,
+  group?: PriceGroup | null,
+): number {
+  const base = db.products.find((p) => p.id === productId)?.basePrice ?? 0;
+  return unitPrice(db.priceRules, productId, channel, qty, group, base);
+}
+
+/** Shipping fee for an order from the shipping rules */
+export function orderShipping(
+  db: MockDb,
+  input: { channel: Channel; carrierId: CarrierId; address: string; productIds: string[] },
+) {
+  return shippingFee(db.shippingRules, {
+    channel: input.channel,
+    pickUp: input.carrierId === 'store',
+    address: input.address,
+    productIds: input.productIds,
+  });
 }
 
 /** Next 12:00 cut-off from `now` and the time left, e.g. "1 ชม. 25 นาที" */

@@ -53,11 +53,11 @@ export function SkuMatchModal({
           </Radio.Group>
           <NumberInput
             label="จำนวนต่อ 1 SKU"
-            defaultValue={2}
+            defaultValue={20}
             min={1}
-            rightSection={<Text size="xs">แพ็ค</Text>}
+            rightSection={<Text size="xs">ชิ้น</Text>}
             rightSectionWidth={48}
-            description="เช่น โปรแพ็คคู่ 1 SKU = 2 แพ็ค"
+            description="เช่น SKU โปร 20 ชิ้น = 20 ชิ้น"
           />
           <Checkbox defaultChecked label="บันทึกเป็นกฎจับคู่ถาวร (ข้อมูลหลัก › จับคู่ SKU)" />
           {sku.orders > 0 && (
