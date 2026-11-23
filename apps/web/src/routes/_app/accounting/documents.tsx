@@ -11,11 +11,11 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { KeyValue } from '@/components/ui/KeyValue';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -99,13 +99,12 @@ function AccountingDocumentsPage() {
             </Tabs.List>
           </Tabs>
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <TextInput
+            <SearchInput
               miw={240}
-              leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเลขที่เอกสาร, Order, ลูกค้า"
               value={q}
-              onChange={(e) => {
-                setQ(e.currentTarget.value);
+              onSearch={(v) => {
+                setQ(v);
                 reset();
               }}
             />

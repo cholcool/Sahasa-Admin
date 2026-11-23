@@ -10,11 +10,12 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ROLE_COLOR, ROLES, type Role } from '@/features/users/roles';
@@ -107,13 +108,7 @@ function UsersPage() {
       <Paper withBorder radius="lg" p="md">
         <Stack>
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <TextInput
-              miw={240}
-              leftSection={<IconSearch size={16} />}
-              placeholder="ค้นหาชื่อหรืออีเมล"
-              value={q}
-              onChange={(e) => setQ(e.currentTarget.value)}
-            />
+            <SearchInput miw={240} placeholder="ค้นหาชื่อหรืออีเมล" value={q} onSearch={setQ} />
             <Select
               placeholder="ทุก Role"
               clearable

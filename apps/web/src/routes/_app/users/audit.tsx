@@ -1,10 +1,10 @@
-import { Group, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
+import { Group, Paper, Select, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useMemo, useState } from 'react';
 import { AnchorLink } from '@/components/ui/links';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { nowThai } from '@/features/mock/actions';
 import { useMockDb } from '@/features/mock/store';
@@ -119,13 +119,12 @@ function AuditLogPage() {
       <Paper withBorder radius="lg" p="md">
         <Stack>
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <TextInput
+            <SearchInput
               miw={220}
-              leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเลขเอกสารหรือผู้ใช้"
               value={q}
-              onChange={(e) => {
-                setQ(e.currentTarget.value);
+              onSearch={(v) => {
+                setQ(v);
                 reset();
               }}
             />

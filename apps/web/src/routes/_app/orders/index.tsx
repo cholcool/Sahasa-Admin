@@ -1,15 +1,4 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Group,
-  Paper,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Alert, Badge, Button, Group, Paper, Select, Stack, Tabs, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   CHANNELS,
@@ -20,18 +9,13 @@ import {
   type OrderStatus,
 } from '@sahasa/shared';
 import { DatePickerInput } from '@mantine/dates';
-import {
-  IconCalendar,
-  IconFileUpload,
-  IconFilterOff,
-  IconPlus,
-  IconSearch,
-} from '@tabler/icons-react';
+import { IconCalendar, IconFileUpload, IconFilterOff, IconPlus } from '@tabler/icons-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useMemo, useState } from 'react';
 import { AnchorLink } from '@/components/ui/links';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
@@ -132,17 +116,12 @@ function OrderListPage() {
       <Paper withBorder radius="lg" p="md">
         <Stack>
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <TextInput
-              key={`q-${search.q ?? ''}`}
+            <SearchInput
               miw={240}
-              leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเลข Order, ชื่อลูกค้า, เบอร์โทร"
               aria-label="ค้นหา Order"
-              defaultValue={search.q}
-              onBlur={(e) => setSearch({ q: e.currentTarget.value || undefined })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setSearch({ q: e.currentTarget.value || undefined });
-              }}
+              value={search.q ?? ''}
+              onSearch={(v) => setSearch({ q: v || undefined })}
             />
             <Select
               placeholder="ทุกช่องทาง"

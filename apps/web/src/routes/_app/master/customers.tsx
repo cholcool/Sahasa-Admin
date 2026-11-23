@@ -1,21 +1,12 @@
-import {
-  Button,
-  Group,
-  Paper,
-  Select,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from '@mantine/core';
+import { Button, Group, Paper, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { CHANNELS } from '@sahasa/shared';
-import { IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useMemo, useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PRICE_GROUPS } from '@/features/mock/pricing';
@@ -85,13 +76,12 @@ function CustomersPage() {
       <Paper withBorder radius="lg" p="md">
         <Stack>
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <TextInput
+            <SearchInput
               miw={240}
-              leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาชื่อ, เบอร์โทร, เลขผู้เสียภาษี"
               value={q}
-              onChange={(e) => {
-                setQ(e.currentTarget.value);
+              onSearch={(v) => {
+                setQ(v);
                 setPage(1);
               }}
             />

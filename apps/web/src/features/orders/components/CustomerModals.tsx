@@ -13,9 +13,9 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SearchInput } from '@/components/ui/SearchInput';
 import { createCustomer } from '@/features/mock/actions';
 import type { Billing, MockAddress, MockCustomer } from '@/features/mock/types';
 import { CHANNEL_LABEL_TH, MANUAL_CHANNELS } from '@/features/orders/labels';
@@ -55,12 +55,12 @@ export function CustomerPickerModal({
       doneMessage={picked ? `เลือก ${picked.name} แล้ว` : undefined}
       onConfirm={() => picked && onSelect(picked.id)}
     >
-      <TextInput
-        leftSection={<IconSearch size={16} />}
+      <SearchInput
         placeholder="ค้นหาเบอร์โทรหรือชื่อ"
-        value={q}
-        onChange={(e) => setQ(e.currentTarget.value)}
         data-autofocus
+        value={q}
+        onSearch={setQ}
+        delay={150}
       />
       <Text size="sm" c="dimmed">
         พบ {found.length} รายการ

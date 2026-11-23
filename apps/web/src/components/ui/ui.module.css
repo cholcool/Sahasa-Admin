@@ -99,3 +99,9 @@ a.barRow {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* SearchInput draws its own clear button; hide the browser's one for type="search" */
+.searchInput::-webkit-search-cancel-button {
+  display: none;
+  appearance: none;
+}
