@@ -10,62 +10,65 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { CHANNELS } from '@sahasa/shared';
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { useMockDb } from '@/features/mock/store';
+import type { MockCustomer } from '@/features/mock/types';
 import { NewCustomerModal } from '@/features/orders/components/CustomerModals';
+import { CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import { formatThaiDate } from '@/lib/dayjs';
+import { formatBaht } from '@/lib/format';
 
 /** 08-03 Customers across channels (SRS 52) */
 export const Route = createFileRoute('/_app/master/customers')({
   component: CustomersPage,
 });
 
-const CUSTOMERS = [
-  {
-    name: 'ร้านเจ๊หมวย',
-    phone: '081-234-5678',
-    extraPhones: 1,
-    channel: 'Line',
-    billing: 'NOVAT',
-    addresses: 2,
-    lastOrder: '13 พ.ย.',
-  },
-  {
-    name: 'บจก. สยามฟู้ด',
-    phone: '081-555-0101',
-    extraPhones: 0,
-    channel: 'Facebook',
-    billing: 'VAT',
-    addresses: 3,
-    lastOrder: '12 พ.ย.',
-  },
-  {
-    name: 'ครัวป้าศรี',
-    phone: '081-998-1122',
-    extraPhones: 0,
-    channel: 'โทร',
-    billing: 'VAT',
-    addresses: 1,
-    lastOrder: '13 พ.ย.',
-  },
-  {
-    name: 'สมชาย ใจดี',
-    phone: '08x-xxx-4421',
-    extraPhones: 0,
-    channel: 'Shopee',
-    billing: 'NOVAT',
-    addresses: 1,
-    lastOrder: '13 พ.ย.',
-  },
-];
+const PAGE_SIZE = 25;
 
 function CustomersPage() {
-  const [viewing, setViewing] = useState<string | null>(null);
+  const db = useMockDb();
+  const [viewing, setViewing] = useState<MockCustomer | null>(null);
   const [newOpened, newCustomer] = useDisclosure(false);
+  const [q, setQ] = useState('');
+  const [channel, setChannel] = useState<string | null>(null);
+  const [billing, setBilling] = useState<string | null>('all');
+  const [page, setPage] = useState(1);
+
+  // Order count, total and last order per customer
+  const stats = useMemo(() => {
+    const map = new Map<string, { count: number; total: number; last: string }>();
+    for (const o of db.orders) {
+      if (o.status === 'cancelled') continue;
+      const s = map.get(o.customerId) ?? { count: 0, total: 0, last: '' };
+      s.count += 1;
+      s.total += o.total;
+      if (o.orderDate > s.last) s.last = o.orderDate;
+      map.set(o.customerId, s);
+    }
+    return map;
+  }, [db.orders]);
+
+  const query = q.trim().toLowerCase().replace(/-/g, '');
+  const rows = db.customers
+    .filter(
+      (c) =>
+        (!channel || c.channel === channel) &&
+        (billing === 'all' || c.billing === billing) &&
+        (!query ||
+          c.name.toLowerCase().includes(query) ||
+          c.phone.replace(/-/g, '').includes(query) ||
+          (c.taxId ?? '').includes(query)),
+    )
+    .toSorted((a, b) => (stats.get(b.id)?.last ?? '').localeCompare(stats.get(a.id)?.last ?? ''));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const viewStats = viewing ? stats.get(viewing.id) : undefined;
 
   return (
     <Stack>
@@ -85,15 +88,50 @@ function CustomersPage() {
               miw={240}
               leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาชื่อ, เบอร์โทร, เลขผู้เสียภาษี"
+              value={q}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+                setPage(1);
+              }}
             />
-            <Select placeholder="ทุกช่องทาง" clearable data={['Line', 'Facebook', 'Shopee', 'โทร']} />
-            <Select data={['VAT และ NOVAT', 'VAT', 'NOVAT']} defaultValue="VAT และ NOVAT" />
+            <Select
+              aria-label="ช่องทาง"
+              placeholder="ทุกช่องทาง"
+              clearable
+              data={CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL_TH[c] }))}
+              value={channel}
+              onChange={(v) => {
+                setChannel(v);
+                setPage(1);
+              }}
+            />
+            <Select
+              aria-label="ประเภทบิล"
+              data={[
+                { value: 'all', label: 'VAT และ NOVAT' },
+                { value: 'VAT', label: 'VAT' },
+                { value: 'NOVAT', label: 'NOVAT' },
+              ]}
+              value={billing}
+              onChange={(v) => {
+                setBilling(v ?? 'all');
+                setPage(1);
+              }}
+              allowDeselect={false}
+            />
           </Group>
           <DataTable
             withTableBorder
             borderRadius="md"
-            idAccessor="name"
-            records={CUSTOMERS}
+            minHeight={200}
+            idAccessor="id"
+            records={pageRows}
+            totalRecords={rows.length}
+            recordsPerPage={PAGE_SIZE}
+            page={page}
+            onPageChange={setPage}
+            paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
+            noRecordsText="ไม่พบลูกค้า"
             columns={[
               {
                 accessor: 'name',
@@ -104,21 +142,8 @@ function CustomersPage() {
                   </Text>
                 ),
               },
-              {
-                accessor: 'phone',
-                title: 'เบอร์หลัก',
-                render: (r) => (
-                  <>
-                    {r.phone}{' '}
-                    {r.extraPhones > 0 && (
-                      <Text span size="xs" c="dimmed">
-                        +{r.extraPhones}
-                      </Text>
-                    )}
-                  </>
-                ),
-              },
-              { accessor: 'channel', title: 'ช่องทาง' },
+              { accessor: 'phone', title: 'เบอร์หลัก' },
+              { accessor: 'channel', title: 'ช่องทาง', render: (r) => CHANNEL_LABEL_TH[r.channel] },
               {
                 accessor: 'billing',
                 title: 'บิล',
@@ -128,14 +153,32 @@ function CustomersPage() {
                   </StatusBadge>
                 ),
               },
-              { accessor: 'addresses', title: 'ที่อยู่', textAlign: 'right' },
-              { accessor: 'lastOrder', title: 'Order ล่าสุด' },
+              {
+                accessor: 'addresses',
+                title: 'ที่อยู่',
+                textAlign: 'right',
+                render: (r) => r.addresses.length,
+              },
+              {
+                accessor: 'orders',
+                title: 'Order',
+                textAlign: 'right',
+                render: (r) => stats.get(r.id)?.count ?? 0,
+              },
+              {
+                accessor: 'lastOrder',
+                title: 'Order ล่าสุด',
+                render: (r) => {
+                  const last = stats.get(r.id)?.last;
+                  return last ? formatThaiDate(last, 'D MMM') : '—';
+                },
+              },
               {
                 accessor: 'actions',
                 title: '',
                 textAlign: 'right',
                 render: (r) => (
-                  <Button size="compact-xs" variant="default" onClick={() => setViewing(r.name)}>
+                  <Button size="compact-xs" variant="default" onClick={() => setViewing(r)}>
                     ดู
                   </Button>
                 ),
@@ -148,41 +191,56 @@ function CustomersPage() {
       <ConfirmModal
         opened={viewing !== null}
         onClose={() => setViewing(null)}
-        title={viewing}
+        title={viewing?.name}
         confirmLabel="แก้ไขข้อมูล"
-        doneMessage="เปิดโหมดแก้ไข"
+        doneMessage="เปิดโหมดแก้ไข (ตัวอย่าง)"
         size="xl"
       >
-        {/* TODO: load the selected customer; mock shows บจก. สยามฟู้ด */}
-        <Group gap="xs">
-          <StatusBadge color="blue">VAT</StatusBadge>
-          <StatusBadge>Facebook</StatusBadge>
-          <Text size="xs" c="dimmed">
-            ลูกค้าตั้งแต่ ม.ค. 2569 · 38 Order · ฿52,400
-          </Text>
-        </Group>
-        <SimpleGrid cols={{ base: 1, md: 2 }}>
-          <Stack gap="xs">
-            <ListBlock title="เบอร์โทร" items={['081-555-0101 · หลัก', '02-111-2222 · ฝ่ายจัดซื้อ']} />
-            <ListBlock
-              title="ข้อมูลใบกำกับภาษี"
-              items={[
-                ['บจก. สยามฟู้ด (สำนักงานใหญ่) · 0105561234567', true],
-                'บจก. สยามฟู้ด (สาขา 00002) · 0105561234567',
-              ]}
-            />
-          </Stack>
-          <ListBlock
-            title="ที่อยู่จัดส่ง"
-            items={[
-              ['12 ถ.เพชรเกษม ต.คอหงส์ อ.หาดใหญ่ จ.สงขลา 90112', true],
-              '88 ถ.นิพัทธ์อุทิศ 3 อ.หาดใหญ่ จ.สงขลา 90110',
-              '45 ซ.สุขุมวิท 22 คลองเตย กรุงเทพฯ 10110',
-            ]}
-          />
-        </SimpleGrid>
+        {viewing && (
+          <>
+            <Group gap="xs">
+              <StatusBadge color={viewing.billing === 'VAT' ? 'blue' : 'gray'}>
+                {viewing.billing}
+              </StatusBadge>
+              <StatusBadge>{CHANNEL_LABEL_TH[viewing.channel]}</StatusBadge>
+              <Text size="xs" c="dimmed">
+                {viewStats?.count ?? 0} Order · {formatBaht(viewStats?.total ?? 0)}
+              </Text>
+            </Group>
+            <SimpleGrid cols={{ base: 1, md: 2 }}>
+              <Stack gap="xs">
+                <ListBlock title="เบอร์โทร" items={[`${viewing.phone} · หลัก`]} />
+                <ListBlock
+                  title="ข้อมูลใบกำกับภาษี"
+                  items={
+                    viewing.billing === 'VAT'
+                      ? [
+                          [
+                            `${viewing.name} (สำนักงานใหญ่) · ${viewing.taxId ?? 'ยังไม่มีเลขผู้เสียภาษี'}`,
+                            true,
+                          ],
+                        ]
+                      : ['ไม่ออกใบกำกับ (NOVAT)']
+                  }
+                />
+              </Stack>
+              <ListBlock
+                title="ที่อยู่จัดส่ง"
+                items={viewing.addresses.map((a): [string, boolean] => [
+                  `${a.name} · ${a.text} · ${a.phone}`,
+                  a.isDefault,
+                ])}
+              />
+            </SimpleGrid>
+          </>
+        )}
       </ConfirmModal>
-      <NewCustomerModal opened={newOpened} onClose={newCustomer.close} />
+      <NewCustomerModal
+        key={`new-${newOpened}`}
+        opened={newOpened}
+        onClose={newCustomer.close}
+        onCreated={() => undefined}
+      />
     </Stack>
   );
 }

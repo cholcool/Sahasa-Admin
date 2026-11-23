@@ -102,6 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: 'เวลาตัดรอบ', to: '/master/cutoff' },
       { label: 'ข้อมูลบริษัท', to: '/master/company' },
       { label: 'นำเข้าข้อมูลเก่า', to: '/master/import' },
+      { label: 'ข้อมูล Mockup', to: '/master/mock-data' },
     ],
   },
   {

@@ -3,18 +3,15 @@ import { PrintPaper } from '@/components/ui/PrintPaper';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { KeyValue } from '@/components/ui/KeyValue';
 import { splitVat, thaiBahtText } from '@/features/accounting/vat';
+import { useMockDb } from '@/features/mock/store';
+import type { MockDocument } from '@/features/mock/types';
+import { formatThaiDate } from '@/lib/dayjs';
 import { formatAmount } from '@/lib/format';
-
-const LINES = [
-  { name: 'เต้าหู้คลองแงะ แพ็ค 10 ชิ้น', qty: 10, price: 190 },
-  { name: 'น้ำจิ้ม 400g', qty: 6, price: 125 },
-  { name: 'ค่าขนส่ง', qty: 1, price: 200 },
-];
 
 interface InvoicePreviewModalProps {
   opened: boolean;
   onClose: () => void;
-  docNo: string;
+  doc: MockDocument | null;
   onCancelDocument: () => void;
 }
 
@@ -25,16 +22,27 @@ interface InvoicePreviewModalProps {
 export function InvoicePreviewModal({
   opened,
   onClose,
-  docNo,
+  doc,
   onCancelDocument,
 }: InvoicePreviewModalProps) {
-  const total = LINES.reduce((s, l) => s + l.qty * l.price, 0);
-  const { base, vat } = splitVat(total);
+  const db = useMockDb();
+  const docNo = doc?.no ?? '';
+  const order = db.orders.find((o) => o.orderNumber === doc?.orderNumber);
+  const customer = db.customers.find((c) => c.id === order?.customerId);
+  const lines = [
+    ...(order?.lines ?? []).map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+    ...(order && order.shippingFee > 0
+      ? [{ name: 'ค่าขนส่ง', qty: 1, price: order.shippingFee }]
+      : []),
+  ];
+  const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const vatDoc = doc?.billing === 'VAT';
+  const { base, vat } = vatDoc ? splitVat(total) : { base: total, vat: 0 };
   return (
     <ConfirmModal
       opened={opened}
       onClose={onClose}
-      title={`ตัวอย่างใบกำกับภาษี · ${docNo}`}
+      title={`ตัวอย่าง${doc?.type ?? 'เอกสาร'} · ${docNo}`}
       confirmLabel="พิมพ์"
       doneMessage="ส่งไปเครื่องพิมพ์ dot matrix แล้ว"
       onConfirm={() => window.print()}
@@ -56,22 +64,22 @@ export function InvoicePreviewModal({
                 99 ถ.คลองแงะ ต.พังลา อ.สะเดา จ.สงขลา 90170 · เลขผู้เสียภาษี 0905561000123
               </Text>
               <Title order={5} ta="center" my={4}>
-                ใบกำกับภาษี / ใบเสร็จรับเงิน
+                {vatDoc ? 'ใบกำกับภาษี / ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน'}
               </Title>
               <Group justify="space-between" align="flex-start">
                 <Text size="xs">
-                  ลูกค้า: บจก. สยามฟู้ด (สำนักงานใหญ่)
+                  ลูกค้า: {doc?.customerName}
                   <br />
-                  เลขผู้เสียภาษี: 0105561234567
+                  เลขผู้เสียภาษี: {customer?.taxId ?? '-'}
                   <br />
-                  ที่อยู่: 12 ถ.เพชรเกษม หาดใหญ่ สงขลา
+                  ที่อยู่: {order?.address}
                 </Text>
                 <Text size="xs">
                   เลขที่: {docNo}
                   <br />
-                  วันที่: 12/11/2569
+                  วันที่: {doc ? formatThaiDate(doc.issuedAt, 'DD/MM/BBBB') : ''}
                   <br />
-                  อ้างอิง: ORD-000130
+                  อ้างอิง: {doc?.orderNumber}
                 </Text>
               </Group>
               <Table withTableBorder withColumnBorders fz="xs">
@@ -84,7 +92,7 @@ export function InvoicePreviewModal({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {LINES.map((l) => (
+                  {lines.map((l) => (
                     <Table.Tr key={l.name}>
                       <Table.Td>{l.name}</Table.Td>
                       <Table.Td ta="right">{l.qty}</Table.Td>
@@ -96,7 +104,7 @@ export function InvoicePreviewModal({
               </Table>
               <Box ml="auto" w={{ base: '100%', sm: 260 }}>
                 <KeyValue label="มูลค่าสินค้า">{formatAmount(base)}</KeyValue>
-                <KeyValue label="ภาษีมูลค่าเพิ่ม 7%">{formatAmount(vat)}</KeyValue>
+                {vatDoc && <KeyValue label="ภาษีมูลค่าเพิ่ม 7%">{formatAmount(vat)}</KeyValue>}
                 <KeyValue label="รวมทั้งสิ้น">
                   <b>{formatAmount(total)}</b>
                 </KeyValue>

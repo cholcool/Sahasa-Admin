@@ -1,9 +1,12 @@
 import { Paper, Stack, Text } from '@mantine/core';
+import type { Channel } from '@sahasa/shared';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { ReportFilters } from '@/features/reports/components/ReportFilters';
+import { useMockDb } from '@/features/mock/store';
+import { ReportFilters, useReportFilter } from '@/features/reports/components/ReportFilters';
+import { formatThaiDate } from '@/lib/dayjs';
 import { formatNumber } from '@/lib/format';
 
 /** 06-05 Monthly reconciliation summary per platform (SRS 39) */
@@ -14,70 +17,84 @@ export const Route = createFileRoute('/_app/reports/reconcile')({
 interface Row {
   id: string;
   platform: string;
-  month: string;
-  amount?: number;
-  fee?: number;
-  shipping?: number;
-  received?: number;
-  mismatched?: number;
+  period: string;
+  amount: number;
+  fee: number;
+  shipping: number;
+  received: number;
+  mismatched: number;
 }
 
-const ROWS: Row[] = [
-  {
-    id: '1',
-    platform: 'Shopee',
-    month: 'พ.ย. 69',
-    amount: 184200,
-    fee: -11052,
-    shipping: -3960,
-    received: 169062,
-    mismatched: 3,
-  },
-  {
-    id: '2',
-    platform: 'Lazada',
-    month: 'พ.ย. 69',
-    amount: 61400,
-    fee: -3991,
-    shipping: -1240,
-    received: 56169,
-    mismatched: 0,
-  },
-  { id: '3', platform: 'TikTok Shop', month: 'พ.ย. 69' },
-  {
-    id: '4',
-    platform: 'Shopee',
-    month: 'ต.ค. 69',
-    amount: 352800,
-    fee: -21168,
-    shipping: -7600,
-    received: 324032,
-    mismatched: 0,
-  },
+const PLATFORMS: { label: string; channel: Channel }[] = [
+  { label: 'Shopee', channel: 'shopee' },
+  { label: 'Lazada', channel: 'lazada' },
+  { label: 'TikTok Shop', channel: 'tiktok' },
 ];
 
-const num = (n?: number) => (n === undefined ? '—' : formatNumber(n));
-const diff = (r: Row) =>
-  r.amount === undefined || r.received === undefined
-    ? undefined
-    : r.received - (r.amount + (r.fee ?? 0) + (r.shipping ?? 0));
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const num = (n: number) => formatNumber(round2(n));
 
 function ReconcileReportPage() {
+  const db = useMockDb();
+  const { filter, setFilter, options } = useReportFilter();
+  const payouts = [...new Set(db.settlements.map((s) => s.paidAt))].toSorted().toReversed();
+
+  const rows: Row[] = payouts.flatMap((paidAt) =>
+    PLATFORMS.filter((p) => !filter.channel || p.channel === filter.channel).map((p) => {
+      const list = db.settlements.filter((s) => s.paidAt === paidAt && s.channel === p.channel);
+      const sum = (k: 'amount' | 'fee' | 'shipping' | 'received') =>
+        list.reduce((s, r) => s + Math.round(r[k] * 100), 0) / 100;
+      return {
+        id: `${paidAt}-${p.channel}`,
+        platform: p.label,
+        period: `โอน ${formatThaiDate(paidAt, 'D MMM BB')}`,
+        amount: sum('amount'),
+        fee: sum('fee'),
+        shipping: sum('shipping'),
+        received: sum('received'),
+        mismatched: list.filter(
+          (r) => Math.round(r.received * 100) !== Math.round((r.amount + r.fee + r.shipping) * 100),
+        ).length,
+      };
+    }),
+  );
+  const diff = (r: Row) => round2(r.received - (r.amount + r.fee + r.shipping));
+
   return (
     <Stack>
       <PageHeader
         title="รายงานกระทบยอด"
-        description="สรุปผลการกระทบยอดเงินโอนจาก Marketplace รายเดือน"
+        description="สรุปผลการกระทบยอดเงินโอนจาก Marketplace ตามรอบโอน"
       />
-      <ReportFilters />
+      <ReportFilters
+        value={filter}
+        onChange={setFilter}
+        options={options}
+        showProduct={false}
+        exportName="reconcile-summary"
+        exportRows={() =>
+          rows.map((r) => ({
+            Platform: r.platform,
+            รอบ: r.period,
+            ยอดOrder: r.amount,
+            ค่าธรรมเนียม: r.fee,
+            ค่าส่ง: r.shipping,
+            ยอดโอน: r.received,
+            ส่วนต่าง: diff(r),
+            ไม่ตรง: r.mismatched,
+          }))
+        }
+      />
       <Paper withBorder radius="lg" p="md">
         <DataTable
           withTableBorder
           borderRadius="md"
-          records={ROWS}
+          minHeight={160}
+          records={rows}
+          noRecordsText="ยังไม่มีรอบโอน"
           columns={[
             { accessor: 'platform', title: 'Platform' },
-            { accessor: 'month', title: 'เดือน' },
+            { accessor: 'period', title: 'รอบ' },
             {
               accessor: 'amount',
               title: 'ยอด Order',
@@ -114,8 +131,7 @@ function ReconcileReportPage() {
               accessor: 'mismatched',
               title: 'ไม่ตรง',
               textAlign: 'right',
-              render: (r) =>
-                r.mismatched === undefined ? <StatusBadge>ยังไม่เชื่อมต่อ</StatusBadge> : r.mismatched,
+              render: (r) => (r.amount === 0 ? <StatusBadge>ไม่มีรายการ</StatusBadge> : r.mismatched),
             },
           ]}
         />

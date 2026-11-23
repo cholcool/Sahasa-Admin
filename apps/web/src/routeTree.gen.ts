@@ -34,6 +34,7 @@ import { Route as AppMasterCompanyRouteImport } from './routes/_app/master/compa
 import { Route as AppMasterCustomersRouteImport } from './routes/_app/master/customers'
 import { Route as AppMasterCutoffRouteImport } from './routes/_app/master/cutoff'
 import { Route as AppMasterImportRouteImport } from './routes/_app/master/import'
+import { Route as AppMasterMockDataRouteImport } from './routes/_app/master/mock-data'
 import { Route as AppMasterSkuMappingRouteImport } from './routes/_app/master/sku-mapping'
 import { Route as AppOrdersIndexRouteImport } from './routes/_app/orders/index'
 import { Route as AppOrdersNewRouteImport } from './routes/_app/orders/new'
@@ -181,6 +182,11 @@ const AppMasterImportRoute = AppMasterImportRouteImport.update({
   path: '/master/import',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMasterMockDataRoute = AppMasterMockDataRouteImport.update({
+  id: '/master/mock-data',
+  path: '/master/mock-data',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMasterSkuMappingRoute = AppMasterSkuMappingRouteImport.update({
   id: '/master/sku-mapping',
   path: '/master/sku-mapping',
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/master/customers': typeof AppMasterCustomersRoute
   '/master/cutoff': typeof AppMasterCutoffRoute
   '/master/import': typeof AppMasterImportRoute
+  '/master/mock-data': typeof AppMasterMockDataRoute
   '/master/sku-mapping': typeof AppMasterSkuMappingRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/orders/upload': typeof AppOrdersUploadRoute
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/master/customers': typeof AppMasterCustomersRoute
   '/master/cutoff': typeof AppMasterCutoffRoute
   '/master/import': typeof AppMasterImportRoute
+  '/master/mock-data': typeof AppMasterMockDataRoute
   '/master/sku-mapping': typeof AppMasterSkuMappingRoute
   '/orders/new': typeof AppOrdersNewRoute
   '/orders/upload': typeof AppOrdersUploadRoute
@@ -405,6 +413,7 @@ export interface FileRoutesById {
   '/_app/master/customers': typeof AppMasterCustomersRoute
   '/_app/master/cutoff': typeof AppMasterCutoffRoute
   '/_app/master/import': typeof AppMasterImportRoute
+  '/_app/master/mock-data': typeof AppMasterMockDataRoute
   '/_app/master/sku-mapping': typeof AppMasterSkuMappingRoute
   '/_app/orders/new': typeof AppOrdersNewRoute
   '/_app/orders/upload': typeof AppOrdersUploadRoute
@@ -454,6 +463,7 @@ export interface FileRouteTypes {
     | '/master/customers'
     | '/master/cutoff'
     | '/master/import'
+    | '/master/mock-data'
     | '/master/sku-mapping'
     | '/orders/new'
     | '/orders/upload'
@@ -501,6 +511,7 @@ export interface FileRouteTypes {
     | '/master/customers'
     | '/master/cutoff'
     | '/master/import'
+    | '/master/mock-data'
     | '/master/sku-mapping'
     | '/orders/new'
     | '/orders/upload'
@@ -549,6 +560,7 @@ export interface FileRouteTypes {
     | '/_app/master/customers'
     | '/_app/master/cutoff'
     | '/_app/master/import'
+    | '/_app/master/mock-data'
     | '/_app/master/sku-mapping'
     | '/_app/orders/new'
     | '/_app/orders/upload'
@@ -761,6 +773,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMasterImportRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/master/mock-data': {
+      id: '/_app/master/mock-data'
+      path: '/master/mock-data'
+      fullPath: '/master/mock-data'
+      preLoaderRoute: typeof AppMasterMockDataRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/master/sku-mapping': {
       id: '/_app/master/sku-mapping'
       path: '/master/sku-mapping'
@@ -928,6 +947,7 @@ interface AppRouteChildren {
   AppMasterCustomersRoute: typeof AppMasterCustomersRoute
   AppMasterCutoffRoute: typeof AppMasterCutoffRoute
   AppMasterImportRoute: typeof AppMasterImportRoute
+  AppMasterMockDataRoute: typeof AppMasterMockDataRoute
   AppMasterSkuMappingRoute: typeof AppMasterSkuMappingRoute
   AppOrdersNewRoute: typeof AppOrdersNewRoute
   AppOrdersUploadRoute: typeof AppOrdersUploadRoute
@@ -971,6 +991,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMasterCustomersRoute: AppMasterCustomersRoute,
   AppMasterCutoffRoute: AppMasterCutoffRoute,
   AppMasterImportRoute: AppMasterImportRoute,
+  AppMasterMockDataRoute: AppMasterMockDataRoute,
   AppMasterSkuMappingRoute: AppMasterSkuMappingRoute,
   AppOrdersNewRoute: AppOrdersNewRoute,
   AppOrdersUploadRoute: AppOrdersUploadRoute,

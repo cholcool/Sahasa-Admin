@@ -2,33 +2,30 @@ import { Alert, Button, Paper, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useState } from 'react';
+import { AnchorLink } from '@/components/ui/links';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { resolveUnmappedSku } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
 import { SkuMatchModal, type UnmappedSku } from '@/features/platforms/components/SkuMatchModal';
+import { formatThaiDate } from '@/lib/dayjs';
 
 /** 07-03 Unmapped platform SKUs (SRS 42, 43) */
 export const Route = createFileRoute('/_app/platforms/unmapped-sku')({
   component: UnmappedSkuPage,
 });
 
-const ROWS: (UnmappedSku & { firstSeen: string })[] = [
-  {
-    platform: 'Shopee',
-    sku: 'TOFU-10-PROMO',
-    name: 'เต้าหู้คลองแงะ 10 ชิ้น (โปรแพ็คคู่)',
-    orders: 4,
-    firstSeen: '12 พ.ย. 14:20',
-  },
-  {
-    platform: 'TikTok Shop',
-    sku: 'SAUCE400-NEW',
-    name: 'น้ำจิ้มสูตรเด็ด 400 กรัม',
-    orders: 2,
-    firstSeen: '13 พ.ย. 08:02',
-  },
-];
-
 function UnmappedSkuPage() {
+  const db = useMockDb();
   const [matching, setMatching] = useState<UnmappedSku | null>(null);
+  const ROWS = db.unmappedSkus.map((u) => ({
+    id: u.id,
+    platform: u.platform,
+    sku: u.sku,
+    name: u.name,
+    orders: 1,
+    orderNumber: u.orderNumber,
+    firstSeen: formatThaiDate(u.at, 'D MMM HH:mm'),
+  }));
   const affected = ROWS.reduce((s, r) => s + r.orders, 0);
   return (
     <Stack>
@@ -36,14 +33,22 @@ function UnmappedSkuPage() {
         title="SKU ที่จับคู่ไม่ได้"
         description="Order ที่มี SKU ไม่รู้จักจะติด flag และยังไม่เข้าคิวโรงงานจนกว่าจะจับคู่"
       />
-      <Alert color="brand" variant="light">
-        มี {ROWS.length} SKU ที่ยังไม่จับคู่ · กระทบ {affected} Order · แจ้ง Admin แล้ว
-      </Alert>
+      {ROWS.length > 0 ? (
+        <Alert color="brand" variant="light">
+          มี {ROWS.length} SKU ที่ยังไม่จับคู่ · กระทบ {affected} Order · แจ้ง Admin แล้ว
+        </Alert>
+      ) : (
+        <Alert color="green" variant="light">
+          จับคู่ SKU ครบแล้ว
+        </Alert>
+      )}
       <Paper withBorder radius="lg" p="md">
         <DataTable
           withTableBorder
           borderRadius="md"
-          idAccessor="sku"
+          idAccessor="id"
+          minHeight={160}
+          noRecordsText="ไม่มี SKU ที่ค้างจับคู่"
           records={ROWS}
           columns={[
             { accessor: 'platform', title: 'Platform' },
@@ -57,7 +62,15 @@ function UnmappedSkuPage() {
               ),
             },
             { accessor: 'name', title: 'ชื่อสินค้าใน Platform' },
-            { accessor: 'orders', title: 'Order ที่ติด', textAlign: 'right' },
+            {
+              accessor: 'orderNumber',
+              title: 'Order ที่ติด',
+              render: (r) => (
+                <AnchorLink to="/orders/$orderId" params={{ orderId: r.orderNumber }} size="sm">
+                  {r.orderNumber}
+                </AnchorLink>
+              ),
+            },
             { accessor: 'firstSeen', title: 'พบครั้งแรก' },
             {
               accessor: 'actions',
@@ -72,7 +85,11 @@ function UnmappedSkuPage() {
           ]}
         />
       </Paper>
-      <SkuMatchModal sku={matching} onClose={() => setMatching(null)} />
+      <SkuMatchModal
+        sku={matching}
+        onClose={() => setMatching(null)}
+        onConfirm={(s) => s.id && resolveUnmappedSku(s.id)}
+      />
     </Stack>
   );
 }

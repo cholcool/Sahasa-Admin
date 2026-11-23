@@ -11,9 +11,13 @@ import {
   Title,
 } from '@mantine/core';
 import { useState } from 'react';
-import { PrintPaper } from '@/components/ui/PrintPaper';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { KeyValue } from '@/components/ui/KeyValue';
+import { PrintPaper } from '@/components/ui/PrintPaper';
+import { carrierName, roundText } from '@/features/mock/selectors';
+import type { MockOrder } from '@/features/mock/types';
+import { CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import { formatThaiDate } from '@/lib/dayjs';
 
 interface ModalProps {
   opened: boolean;
@@ -21,7 +25,12 @@ interface ModalProps {
 }
 
 /** Modal · รายละเอียดการแก้ไขหลังรับ (used by factory dashboard and queue) */
-export function EditedAfterAcceptModal({ opened, onClose }: ModalProps) {
+export function EditedAfterAcceptModal({
+  opened,
+  onClose,
+  order,
+}: ModalProps & { order: MockOrder | null }) {
+  const edits = order?.history.filter((h) => h.type === 'edited') ?? [];
   return (
     <ConfirmModal
       opened={opened}
@@ -30,39 +39,36 @@ export function EditedAfterAcceptModal({ opened, onClose }: ModalProps) {
       confirmLabel="รับทราบ"
       doneMessage="รับทราบการแก้ไขแล้ว"
     >
-      <Text size="sm">
-        <b>ORD-000128</b>{' '}
-        <Text span c="dimmed">
-          · Facebook · คุณนิด · Inter Express
-        </Text>
-      </Text>
-      <Table withTableBorder>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>ฟิลด์</Table.Th>
-            <Table.Th>เดิม</Table.Th>
-            <Table.Th>ใหม่</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          <Table.Tr>
-            <Table.Td>เต้าหู้ แพ็ค 10</Table.Td>
-            <Table.Td>4</Table.Td>
-            <Table.Td fw={700}>5</Table.Td>
-          </Table.Tr>
-          <Table.Tr>
-            <Table.Td>ยอดรวม</Table.Td>
-            <Table.Td>฿760</Table.Td>
-            <Table.Td fw={700}>฿950</Table.Td>
-          </Table.Tr>
-        </Table.Tbody>
-      </Table>
-      <Text size="xs" c="dimmed">
-        แก้ไขโดย Sales01 · 13 พ.ย. 10:42 · ภายในเวลาที่อนุญาต
-      </Text>
-      <Alert color="orange" variant="light">
-        ยอดผลิตรอบนี้ปรับเพิ่ม +1 แพ็คแล้ว · กรุณาพิมพ์ใบจัดสินค้าใหม่
-      </Alert>
+      {order && (
+        <>
+          <Text size="sm">
+            <b>{order.orderNumber}</b>{' '}
+            <Text span c="dimmed">
+              · {CHANNEL_LABEL_TH[order.channel]} · {order.customerName} ·{' '}
+              {carrierName(order.carrierId)}
+            </Text>
+          </Text>
+          <Table withTableBorder>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>เวลา</Table.Th>
+                <Table.Th>การแก้ไข</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {edits.map((e) => (
+                <Table.Tr key={e.at + e.text}>
+                  <Table.Td>{formatThaiDate(e.at, 'D MMM HH:mm')}</Table.Td>
+                  <Table.Td>{e.text}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          <Alert color="orange" variant="light">
+            ยอดผลิตรอบ {roundText(order.roundDate)} ปรับตามแล้ว · กรุณาพิมพ์ใบจัดสินค้าใหม่
+          </Alert>
+        </>
+      )}
     </ConfirmModal>
   );
 }
@@ -73,68 +79,80 @@ const DOC_TYPES = ['ใบจัดสินค้า', 'ใบปะหน้�
 export function PrintPreviewModal({
   opened,
   onClose,
-  orderCount,
+  orders,
   defaultDoc = 'ใบจัดสินค้า',
-}: ModalProps & { orderCount: number; defaultDoc?: string }) {
+  onPrinted,
+}: ModalProps & {
+  orders: MockOrder[];
+  defaultDoc?: string;
+  onPrinted?: (doc: string) => void;
+}) {
   const [doc, setDoc] = useState<string | null>(defaultDoc);
+  const sample = orders[0];
+  const orderCount = orders.length;
   return (
     <ConfirmModal
       opened={opened}
       onClose={onClose}
       title="ตัวอย่างก่อนพิมพ์"
       confirmLabel={`สั่งพิมพ์ ${orderCount} รายการ`}
+      confirmDisabled={orderCount === 0}
       doneMessage="ส่งไปเครื่องพิมพ์แล้ว"
-      onConfirm={() => window.print()}
+      onConfirm={() => {
+        onPrinted?.(doc ?? defaultDoc);
+        window.print();
+      }}
       size="xl"
     >
       <Grid>
         <Grid.Col span={{ base: 12, sm: 7 }}>
           {/* Paper preview stays white in dark mode, like printed output */}
           <PrintPaper>
-            <Stack gap="xs">
-              <Title order={4} ta="center">
-                {doc}
-              </Title>
-              <Text size="sm">
-                รอบ 13 พ.ย. 2569 · 12:00{' '}
-                <Text span ff="monospace" fw={700} style={{ float: 'right' }}>
-                  ORD-000141
+            {sample ? (
+              <Stack gap="xs">
+                <Title order={4} ta="center">
+                  {doc}
+                </Title>
+                <Text size="sm">
+                  รอบ {roundText(sample.roundDate)}{' '}
+                  <Text span ff="monospace" fw={700} style={{ float: 'right' }}>
+                    {sample.orderNumber}
+                  </Text>
                 </Text>
-              </Text>
-              <Text size="sm">
-                ลูกค้า: ร้านเจ๊หมวย · 081-234-5678
-                <br />
-                ขนส่ง: Nim Express (กทม.)
-              </Text>
-              <Table withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>สินค้า</Table.Th>
-                    <Table.Th ta="center">จำนวน</Table.Th>
-                    <Table.Th ta="center">จัดแล้ว</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  <Table.Tr>
-                    <Table.Td>เต้าหู้คลองแงะ แพ็ค 10 ชิ้น</Table.Td>
-                    <Table.Td ta="center">5</Table.Td>
-                    <Table.Td ta="center">☐</Table.Td>
-                  </Table.Tr>
-                  <Table.Tr>
-                    <Table.Td>น้ำจิ้ม 400g</Table.Td>
-                    <Table.Td ta="center">2</Table.Td>
-                    <Table.Td ta="center">☐</Table.Td>
-                  </Table.Tr>
-                </Table.Tbody>
-              </Table>
-              <Text size="sm" mt="md">
-                ผู้จัด ..................{' '}
-                <span style={{ float: 'right' }}>ผู้ตรวจ ..................</span>
-              </Text>
-              <Text size="xs" c="dimmed">
-                หน้า 2 จาก {orderCount}
-              </Text>
-            </Stack>
+                <Text size="sm">
+                  ลูกค้า: {sample.customerName} · {sample.phone}
+                  <br />
+                  ขนส่ง: {carrierName(sample.carrierId, true)}
+                </Text>
+                <Table withTableBorder withColumnBorders>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>สินค้า</Table.Th>
+                      <Table.Th ta="center">จำนวน</Table.Th>
+                      <Table.Th ta="center">จัดแล้ว</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {sample.lines.map((l) => (
+                      <Table.Tr key={l.productId}>
+                        <Table.Td>{l.name}</Table.Td>
+                        <Table.Td ta="center">{l.qty}</Table.Td>
+                        <Table.Td ta="center">☐</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+                <Text size="sm" mt="md">
+                  ผู้จัด ..................{' '}
+                  <span style={{ float: 'right' }}>ผู้ตรวจ ..................</span>
+                </Text>
+                <Text size="xs" c="dimmed">
+                  หน้า 1 จาก {orderCount}
+                </Text>
+              </Stack>
+            ) : (
+              <Text c="dimmed">ยังไม่ได้เลือก Order</Text>
+            )}
           </PrintPaper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, sm: 5 }}>

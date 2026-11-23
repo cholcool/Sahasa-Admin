@@ -18,6 +18,9 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatGrid } from '@/components/ui/StatCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { nowThai, resyncLog } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
+import { dayjs, formatThaiDate, todayIso } from '@/lib/dayjs';
 import { notifyDone } from '@/lib/notify';
 
 /** 07-02 Integration log with re-sync (SRS 46, 47, 48, pending) */
@@ -33,61 +36,33 @@ const RESULT: Record<Result, { label: string; color: string }> = {
   skip: { label: 'ข้าม (ซ้ำ)', color: 'gray' },
 };
 
-const LOGS = [
-  {
-    id: 1,
-    at: '10:45:02',
-    platform: 'Lazada',
-    type: 'ดึง Order (Pull)',
-    result: 'fail' as Result,
-    detail: '401 Unauthorized · Access token หมดอายุ',
-  },
-  {
-    id: 2,
-    at: '10:45:00',
-    platform: 'Shopee',
-    type: 'Webhook: order.created',
-    result: 'ok' as Result,
-    detail: 'สร้าง ORD-000152 (2611130XY77)',
-  },
-  {
-    id: 3,
-    at: '10:40:11',
-    platform: 'Shopee',
-    type: 'Sync สถานะกลับ',
-    result: 'ok' as Result,
-    detail: 'ORD-000139 → shipped · IE6611300045',
-  },
-  {
-    id: 4,
-    at: '10:35:02',
-    platform: 'Lazada',
-    type: 'ดึง Order (Pull)',
-    result: 'fail' as Result,
-    detail: '401 Unauthorized',
-  },
-  {
-    id: 5,
-    at: '10:31:44',
-    platform: 'Shopee',
-    type: 'ดึง Order (Pull)',
-    result: 'skip' as Result,
-    detail: '2611130XY55 มีอยู่แล้ว · ไม่สร้าง Order ซ้ำ',
-  },
-  {
-    id: 6,
-    at: '09:58:20',
-    platform: 'Inter Express',
-    type: 'ดึงสถานะขนส่ง',
-    result: 'fail' as Result,
-    detail: 'Timeout 30s',
-  },
-];
+const PAGE_SIZE = 30;
+const RESULT_OK: Result = 'ok';
+const RESULT_FAIL: Result = 'fail';
 
 function PlatformLogPage() {
   const [tab, setTab] = useState<string | null>('all');
   const [resyncOpened, resync] = useDisclosure(false);
-  const rows = LOGS.filter((l) => tab === 'all' || l.result === 'fail');
+  const [page, setPage] = useState(1);
+  const db = useMockDb();
+  const now = nowThai();
+  const today = todayIso();
+  const since = dayjs(now).subtract(24, 'hour').format();
+  const logs = db.platformLogs
+    .filter((l) => l.at <= now)
+    .map((l) => ({
+      id: l.id,
+      at: formatThaiDate(l.at, 'D MMM HH:mm'),
+      rawAt: l.at,
+      platform: l.platform,
+      type: 'ดึง Order (Pull)',
+      result: l.ok ? RESULT_OK : RESULT_FAIL,
+      detail: l.message,
+    }));
+  const failed = logs.filter((l) => l.result === 'fail');
+  const rows = logs.filter((l) => tab === 'all' || l.result === 'fail');
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const last24 = logs.filter((l) => dayjs(l.rawAt).isAfter(since));
 
   return (
     <Stack>
@@ -103,10 +78,29 @@ function PlatformLogPage() {
       />
       <StatGrid
         items={[
-          { label: 'สำเร็จ (24 ชม.)', value: '1,284', color: 'green' },
-          { label: 'ล้มเหลว (24 ชม.)', value: 3, color: 'brand' },
-          { label: 'Order ที่ดึงวันนี้', value: 212, color: 'blue' },
-          { label: 'Sync สถานะกลับ', value: 198, color: 'gray' },
+          {
+            label: 'สำเร็จ (24 ชม.)',
+            value: last24.filter((l) => l.result === 'ok').length,
+            color: 'green',
+          },
+          {
+            label: 'ล้มเหลว (24 ชม.)',
+            value: last24.filter((l) => l.result === 'fail').length,
+            color: 'brand',
+          },
+          {
+            label: 'Order ที่ดึงวันนี้',
+            value: db.orders.filter(
+              (o) => o.platformOrderNo && o.orderDate === today && o.orderedAt <= now,
+            ).length,
+            color: 'blue',
+          },
+          {
+            label: 'Sync สถานะกลับ',
+            value: db.orders.filter((o) => o.sync === 'ok' && o.shippedAt?.startsWith(today))
+              .length,
+            color: 'gray',
+          },
         ]}
       />
       <Alert color="blue" variant="light">
@@ -117,16 +111,30 @@ function PlatformLogPage() {
         </Badge>
       </Alert>
       <Paper withBorder radius="lg" p="md">
-        <Tabs value={tab} onChange={setTab} mb="sm">
+        <Tabs
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          mb="sm"
+        >
           <Tabs.List>
             <Tabs.Tab value="all">ทั้งหมด</Tabs.Tab>
-            <Tabs.Tab value="fail">ล้มเหลว (3)</Tabs.Tab>
+            <Tabs.Tab value="fail">ล้มเหลว ({failed.length})</Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <DataTable
           withTableBorder
           borderRadius="md"
-          records={rows}
+          records={pageRows}
+          totalRecords={rows.length}
+          recordsPerPage={PAGE_SIZE}
+          page={page}
+          onPageChange={setPage}
+          minHeight={200}
+          noRecordsText="ไม่มี log"
+          paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
           rowColor={(r) => (r.result === 'fail' ? 'brand' : undefined)}
           columns={[
             { accessor: 'at', title: 'เวลา' },
@@ -149,7 +157,10 @@ function PlatformLogPage() {
                   <Button
                     size="compact-xs"
                     variant="default"
-                    onClick={() => notifyDone('ส่งคำสั่ง Re-sync แล้ว')}
+                    onClick={() => {
+                      resyncLog(r.id);
+                      notifyDone('Re-sync สำเร็จ');
+                    }}
                   >
                     Re-sync
                   </Button>
@@ -171,8 +182,14 @@ function PlatformLogPage() {
           defaultValue="Lazada"
         />
         <SimpleGrid cols={2}>
-          <TextInput label="ตั้งแต่" defaultValue="13/11/2569 09:00" />
-          <TextInput label="ถึง" defaultValue="13/11/2569 11:00" />
+          <TextInput
+            label="ตั้งแต่"
+            defaultValue={formatThaiDate(
+              dayjs(now).subtract(2, 'hour').format(),
+              'DD/MM/BBBB HH:00',
+            )}
+          />
+          <TextInput label="ถึง" defaultValue={formatThaiDate(now, 'DD/MM/BBBB HH:00')} />
         </SimpleGrid>
         <Alert color="blue" variant="light">
           ระบบจะไม่สร้าง Order ซ้ำ (ตรวจด้วย Platform + Platform Order No.)

@@ -20,7 +20,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatGrid } from '@/components/ui/StatCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { splitVat } from '@/features/accounting/vat';
-import { formatAmount } from '@/lib/format';
+import { markRevenueSent } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
+import { CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import { formatThaiDate, todayIso } from '@/lib/dayjs';
+import { formatAmount, formatBaht } from '@/lib/format';
 
 /** 05-01 Revenue recognition (SRS 29, pending client confirmation) */
 export const Route = createFileRoute('/_app/accounting/')({
@@ -35,52 +39,39 @@ const STATE: Record<RevState, { label: string; color: string }> = {
   err: { label: 'ผิดพลาด', color: 'brand' },
 };
 
-// TODO: replace with revenue API
-const ROWS = [
-  {
-    at: '13 พ.ย. 09:20',
-    order: 'ORD-000141',
-    channel: 'Line',
-    customer: 'ร้านเจ๊หมวย',
-    billing: 'NOVAT',
-    total: 1250,
-    state: 'wait' as RevState,
-  },
-  {
-    at: '13 พ.ย. 09:05',
-    order: 'ORD-000139',
-    channel: 'Facebook',
-    customer: 'บจก. สยามฟู้ด',
-    billing: 'VAT',
-    total: 570,
-    state: 'wait' as RevState,
-  },
-  {
-    at: '12 พ.ย. 16:40',
-    order: 'ORD-000130',
-    channel: 'Line',
-    customer: 'บจก. สยามฟู้ด',
-    billing: 'VAT',
-    total: 2850,
-    state: 'sent' as RevState,
-  },
-  {
-    at: '12 พ.ย. 15:10',
-    order: 'ORD-000127',
-    channel: 'โทร',
-    customer: 'ครัวป้าศรี',
-    billing: 'VAT',
-    total: 950,
-    state: 'err' as RevState,
-    error: 'ไม่มีเลขผู้เสียภาษี',
-  },
-];
+const PAGE_SIZE = 25;
 
 function RevenuePage() {
   const [tab, setTab] = useState<string | null>('all');
   const [exportOpened, exportModal] = useDisclosure(false);
   const [format, setFormat] = useState('CSV ทั่วไป');
-  const rows = ROWS.filter((r) => tab === 'all' || r.state === tab);
+  const [page, setPage] = useState(1);
+  const [markSent, setMarkSent] = useState(true);
+  const db = useMockDb();
+  const today = todayIso();
+  const all = db.orders
+    .filter((o) => o.revenue && o.status !== 'cancelled')
+    .map((o) => ({
+      at: o.revenue?.at ?? o.orderedAt,
+      order: o.orderNumber,
+      channel: CHANNEL_LABEL_TH[o.channel],
+      customer: o.customerName,
+      billing: o.billing,
+      total: o.total,
+      state: o.revenue?.state ?? 'wait',
+      error: o.revenue?.error,
+    }))
+    .toSorted((a, b) => b.at.localeCompare(a.at));
+  const rows = all.filter((r) => tab === 'all' || r.state === tab);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const waiting = all.filter((r) => r.state === 'wait');
+  const errors = all.filter((r) => r.state === 'err');
+  const month = today.slice(0, 7);
+  const revenueToday = all
+    .filter((r) => r.at.slice(0, 10) === today)
+    .reduce((s, r) => s + r.total, 0);
+  const waitingTotal = waiting.reduce((s, r) => s + r.total, 0);
+  const from = waiting.map((r) => r.at).toSorted()[0];
 
   return (
     <Stack>
@@ -99,29 +90,51 @@ function RevenuePage() {
       </Alert>
       <StatGrid
         items={[
-          { label: 'รายได้วันนี้', value: '฿58,940', color: 'green' },
-          { label: 'รอส่งข้อมูล', value: 18, color: 'orange' },
-          { label: 'ส่งแล้วเดือนนี้', value: 214, color: 'blue' },
-          { label: 'ส่งไม่สำเร็จ', value: 1, color: 'brand' },
+          { label: 'รายได้วันนี้', value: formatBaht(revenueToday), color: 'green' },
+          { label: 'รอส่งข้อมูล', value: waiting.length, color: 'orange' },
+          {
+            label: 'ส่งแล้วเดือนนี้',
+            value: all.filter((r) => r.state === 'sent' && r.at.startsWith(month)).length,
+            color: 'blue',
+          },
+          { label: 'ส่งไม่สำเร็จ', value: errors.length, color: 'brand' },
         ]}
       />
       <Paper withBorder radius="lg" p="md">
-        <Tabs value={tab} onChange={setTab} mb="sm">
+        <Tabs
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          mb="sm"
+        >
           <Tabs.List>
             <Tabs.Tab value="all">ทั้งหมด</Tabs.Tab>
-            <Tabs.Tab value="wait">รอส่ง (18)</Tabs.Tab>
+            <Tabs.Tab value="wait">รอส่ง ({waiting.length})</Tabs.Tab>
             <Tabs.Tab value="sent">ส่งแล้ว</Tabs.Tab>
-            <Tabs.Tab value="err">ผิดพลาด (1)</Tabs.Tab>
+            <Tabs.Tab value="err">ผิดพลาด ({errors.length})</Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <DataTable
           withTableBorder
           borderRadius="md"
           idAccessor="order"
-          records={rows}
+          records={pageRows}
+          totalRecords={rows.length}
+          recordsPerPage={PAGE_SIZE}
+          page={page}
+          onPageChange={setPage}
+          minHeight={200}
+          noRecordsText="ไม่มีรายการ"
+          paginationText={({ from: a, to, totalRecords }) => `${a}–${to} จาก ${totalRecords}`}
           rowColor={(r) => (r.state === 'err' ? 'brand' : undefined)}
           columns={[
-            { accessor: 'at', title: 'วันที่รับรู้' },
+            {
+              accessor: 'at',
+              title: 'วันที่รับรู้',
+              render: (r) => formatThaiDate(r.at, 'D MMM HH:mm'),
+            },
             {
               accessor: 'order',
               title: 'เลข Order',
@@ -170,9 +183,19 @@ function RevenuePage() {
         onClose={exportModal.close}
         title="ส่งออกข้อมูลบัญชี"
         confirmLabel="ส่งออก"
-        doneMessage="ส่งออก 18 รายการแล้ว"
+        doneMessage={`ส่งออก ${waiting.length} รายการแล้ว`}
+        confirmDisabled={waiting.length === 0}
+        onConfirm={() => {
+          if (markSent) markRevenueSent(waiting.map((r) => r.order));
+        }}
       >
-        <TextInput label="ช่วงวันที่" defaultValue="1–13 พ.ย. 2569" />
+        <TextInput
+          label="ช่วงวันที่"
+          readOnly
+          value={
+            from ? `${formatThaiDate(from, 'D MMM')} – ${formatThaiDate(today, 'D MMM BBBB')}` : '-'
+          }
+        />
         <div>
           <Text size="sm" fw={500} mb={4}>
             รูปแบบไฟล์ (รอยืนยันโปรแกรมบัญชี Q21)
@@ -185,11 +208,15 @@ function RevenuePage() {
         </div>
         <Paper withBorder p="sm" radius="md">
           <Stack gap={4}>
-            <KeyValue label="รายการที่ส่งออก">18 รายการ</KeyValue>
-            <KeyValue label="ยอดรวม">฿24,380.00</KeyValue>
+            <KeyValue label="รายการที่ส่งออก">{waiting.length} รายการ</KeyValue>
+            <KeyValue label="ยอดรวม">{formatBaht(waitingTotal, { decimals: true })}</KeyValue>
           </Stack>
         </Paper>
-        <Checkbox defaultChecked label='ทำเครื่องหมายว่า "ส่งแล้ว" หลังส่งออก' />
+        <Checkbox
+          checked={markSent}
+          onChange={(e) => setMarkSent(e.currentTarget.checked)}
+          label='ทำเครื่องหมายว่า "ส่งแล้ว" หลังส่งออก'
+        />
       </ConfirmModal>
     </Stack>
   );

@@ -1,52 +1,83 @@
 import { Alert, Badge, Paper, Select, Stack, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
+import { useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatGrid } from '@/components/ui/StatCard';
 import { splitVat } from '@/features/accounting/vat';
+import { useMockDb } from '@/features/mock/store';
 import { ExportExcelButton } from '@/features/reports/components/ReportFilters';
-import { formatAmount } from '@/lib/format';
+import { formatThaiDate } from '@/lib/dayjs';
+import { formatAmount, formatBaht } from '@/lib/format';
 
 /** 06-04 Output tax report (SRS 38, scope pending) */
 export const Route = createFileRoute('/_app/reports/tax')({
   component: TaxReportPage,
 });
 
-const ROWS = [
-  {
-    date: '12/11/69',
-    no: 'INV-2611-0042',
-    buyer: 'บจก. สยามฟู้ด',
-    taxId: '0105561234567',
-    branch: 'สำนักงานใหญ่',
-    total: 2850,
-  },
-  {
-    date: '12/11/69',
-    no: 'INV-2611-0041',
-    buyer: 'คุณนิด',
-    taxId: undefined,
-    branch: undefined,
-    total: 570,
-  },
-  {
-    date: '11/11/69',
-    no: 'CN-2611-0003',
-    buyer: 'ครัวป้าศรี',
-    taxId: '3900100234567',
-    branch: 'สำนักงานใหญ่',
-    total: -950,
-  },
-];
+const PAGE_SIZE = 25;
 
 function TaxReportPage() {
+  const db = useMockDb();
+  const months = [
+    ...new Set([...db.documents, ...db.creditNotes].map((d) => d.issuedAt.slice(0, 7))),
+  ]
+    .toSorted()
+    .toReversed();
+  const [month, setMonth] = useState<string | null>(months[0] ?? null);
+  const [page, setPage] = useState(1);
+
+  const taxIdOf = (orderNumber: string) => {
+    const o = db.orders.find((x) => x.orderNumber === orderNumber);
+    return db.customers.find((c) => c.id === o?.customerId)?.taxId;
+  };
+  const rows = [
+    ...db.documents
+      .filter((d) => d.billing === 'VAT' && d.issuedAt.startsWith(month ?? ''))
+      .map((d) => ({
+        at: d.issuedAt,
+        no: d.no,
+        buyer: d.customerName,
+        taxId: taxIdOf(d.orderNumber),
+        total: d.total,
+      })),
+    ...db.creditNotes
+      .filter((c) => !c.voided && c.issuedAt.startsWith(month ?? ''))
+      .map((c) => ({
+        at: c.issuedAt,
+        no: c.no,
+        buyer: c.customerName,
+        taxId: taxIdOf(c.orderNumber),
+        total: -c.total,
+      })),
+  ].toSorted((a, b) => a.at.localeCompare(b.at));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const invoices = rows.filter((r) => r.total > 0);
+  const credits = rows.filter((r) => r.total < 0);
+  const sumBy = (list: typeof rows, key: 'base' | 'vat') =>
+    list.reduce((s, r) => s + Math.round(splitVat(r.total)[key] * 100), 0) / 100;
+
   return (
     <Stack>
       <PageHeader
         title="รายงานภาษีขาย"
         description="จากบิล VAT ที่ออกในระบบ"
         pending
-        actions={<ExportExcelButton />}
+        actions={
+          <ExportExcelButton
+            filename="output-tax"
+            rows={() =>
+              rows.map((r) => ({
+                วันที่: formatThaiDate(r.at, 'DD/MM/BB'),
+                เลขที่: r.no,
+                ผู้ซื้อ: r.buyer,
+                เลขผู้เสียภาษี: r.taxId ?? '',
+                มูลค่า: splitVat(r.total).base,
+                VAT: splitVat(r.total).vat,
+              }))
+            }
+          />
+        }
       />
       <Alert color="orange" variant="light">
         ไม่มีในฟังก์ชันที่สรุปกับ Owner · รอยืนยันขอบเขต (SRS ข้อ 38){' '}
@@ -55,27 +86,64 @@ function TaxReportPage() {
         </Badge>
       </Alert>
       <Select
-        data={['พฤศจิกายน 2569', 'ตุลาคม 2569']}
-        defaultValue="พฤศจิกายน 2569"
+        data={months.map((m) => ({ value: m, label: formatThaiDate(`${m}-01`, 'MMMM BBBB') }))}
+        value={month}
+        onChange={(v) => {
+          setMonth(v);
+          setPage(1);
+        }}
+        allowDeselect={false}
+        placeholder="ยังไม่มีเอกสาร"
         w={200}
         aria-label="เดือนภาษี"
       />
       <StatGrid
         items={[
-          { label: 'มูลค่าสินค้า/บริการ', value: '฿148,224.30', color: 'blue' },
-          { label: 'ภาษีขาย 7%', value: '฿10,375.70', color: 'orange' },
-          { label: 'รวม', value: '฿158,600.00', color: 'green' },
-          { label: 'ใบลดหนี้', value: '-฿1,331.46', color: 'brand', hint: '3 ฉบับ' },
+          {
+            label: 'มูลค่าสินค้า/บริการ',
+            value: formatBaht(sumBy(rows, 'base'), { decimals: true }),
+            color: 'blue',
+          },
+          {
+            label: 'ภาษีขาย 7%',
+            value: formatBaht(sumBy(rows, 'vat'), { decimals: true }),
+            color: 'orange',
+          },
+          {
+            label: 'รวม',
+            value: formatBaht(
+              rows.reduce((s, r) => s + r.total, 0),
+              { decimals: true },
+            ),
+            color: 'green',
+            hint: `ใบกำกับ ${invoices.length} ฉบับ`,
+          },
+          {
+            label: 'ใบลดหนี้',
+            value: formatBaht(
+              credits.reduce((s, r) => s + r.total, 0),
+              { decimals: true },
+            ),
+            color: 'brand',
+            hint: `${credits.length} ฉบับ`,
+          },
         ]}
       />
       <Paper withBorder radius="lg" p="md">
         <DataTable
           withTableBorder
           borderRadius="md"
+          minHeight={160}
           idAccessor="no"
-          records={ROWS}
+          records={pageRows}
+          totalRecords={rows.length}
+          recordsPerPage={PAGE_SIZE}
+          page={page}
+          onPageChange={setPage}
+          paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
+          noRecordsText="ไม่มีบิล VAT ในเดือนนี้"
           columns={[
-            { accessor: 'date', title: 'วันที่' },
+            { accessor: 'at', title: 'วันที่', render: (r) => formatThaiDate(r.at, 'DD/MM/BB') },
             {
               accessor: 'no',
               title: 'เลขที่ใบกำกับ',
@@ -98,7 +166,7 @@ function TaxReportPage() {
                   '—'
                 ),
             },
-            { accessor: 'branch', title: 'สาขา', render: (r) => r.branch ?? '—' },
+            { accessor: 'branch', title: 'สาขา', render: (r) => (r.taxId ? 'สำนักงานใหญ่' : '—') },
             {
               accessor: 'base',
               title: 'มูลค่า',

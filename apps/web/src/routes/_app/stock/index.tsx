@@ -20,48 +20,52 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { StockDraftBanner } from '@/features/stock/components/StockDraftBanner';
+import { addStockReceipt, nowThai } from '@/features/mock/actions';
+import { stockOnHand, stockReserved } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
+import { dayjs, formatThaiDate, todayIso } from '@/lib/dayjs';
 
 /** 09-01 Stock on hand (SRS 59, draft) */
 export const Route = createFileRoute('/_app/stock/')({
   component: StockOnHandPage,
 });
 
-const ITEMS = [
-  { name: 'เต้าหู้คลองแงะ แพ็ค 10 ชิ้น', unit: 'แพ็ค', reorderPoint: 80, onHand: 260, reserved: 192 },
-  { name: 'น้ำจิ้ม 400g', unit: 'ขวด', reorderPoint: 100, onHand: 410, reserved: 74 },
-];
-
-const LOTS = [
-  {
-    id: 'L-261113-A',
-    product: 'เต้าหู้ แพ็ค 10',
-    produced: '13 พ.ย.',
-    expires: '20 พ.ย.',
-    qty: 180,
-    expiringSoon: false,
-  },
-  {
-    id: 'L-261111-B',
-    product: 'เต้าหู้ แพ็ค 10',
-    produced: '11 พ.ย.',
-    expires: '18 พ.ย. · เหลือ 5 วัน',
-    qty: 80,
-    expiringSoon: true,
-  },
-  {
-    id: 'S-261101',
-    product: 'น้ำจิ้ม 400g',
-    produced: '1 พ.ย.',
-    expires: '1 ก.พ. 70',
-    qty: 410,
-    expiringSoon: false,
-  },
-];
-
 function StockOnHandPage() {
+  const db = useMockDb();
+  const now = nowThai();
+  const today = todayIso();
+  const ITEMS = db.products.map((p) => ({
+    name: p.name,
+    unit: p.unit,
+    reorderPoint: p.kind === 'tofu' ? 80 : 100,
+    onHand: stockOnHand(db, p.id, now),
+    reserved: stockReserved(db, p.id),
+  }));
+  // Latest production lots (tofu keeps 7 days, sauce 90 days)
+  const LOTS = db.products.flatMap((p) =>
+    db.stockReceipts
+      .filter((r) => r.productId === p.id && r.at <= now)
+      .slice(-3)
+      .toReversed()
+      .map((r) => {
+        const expires = dayjs(r.at)
+          .add(p.kind === 'tofu' ? 7 : 90, 'day')
+          .format('YYYY-MM-DD');
+        const left = dayjs(expires).diff(dayjs(today), 'day');
+        return {
+          id: r.lot === 'ยอดยกมา' ? `${r.lot} ${p.shortName}` : r.lot,
+          product: p.name,
+          produced: formatThaiDate(r.at, 'D MMM'),
+          expires: `${formatThaiDate(expires, 'D MMM BB')}${left <= 5 && left >= 0 ? ` · เหลือ ${left} วัน` : left < 0 ? ' · หมดอายุ' : ''}`,
+          qty: r.qty,
+          expiringSoon: left <= 5,
+        };
+      }),
+  );
   const [adjustOpened, adjust] = useDisclosure(false);
   const [mode, setMode] = useState('ปรับลด');
-  const [counted, setCounted] = useState<number | string>(258);
+  const [adjustIndex, setAdjustIndex] = useState(0);
+  const [counted, setCounted] = useState<number | string>(ITEMS[0]?.onHand ?? 0);
 
   return (
     <Stack>
@@ -132,20 +136,35 @@ function StockOnHandPage() {
         confirmLabel="บันทึก"
         doneMessage="ปรับยอดสต็อกแล้ว"
         size="md"
+        onConfirm={() => {
+          const p = db.products[adjustIndex];
+          const diff = Number(counted) - (ITEMS[adjustIndex]?.onHand ?? 0);
+          if (p && diff !== 0) addStockReceipt(p.id, diff, `ปรับยอด (${mode})`);
+        }}
       >
         <SegmentedControl
           data={['ปรับเพิ่ม', 'ปรับลด', 'ของเสีย/เคลม']}
           value={mode}
           onChange={setMode}
         />
-        <Select label="สินค้า" data={ITEMS.map((i) => i.name)} defaultValue={ITEMS[0]?.name} />
+        <Select
+          label="สินค้า"
+          data={ITEMS.map((i, idx) => ({ value: String(idx), label: i.name }))}
+          value={String(adjustIndex)}
+          onChange={(v) => {
+            const idx = Number(v) || 0;
+            setAdjustIndex(idx);
+            setCounted(ITEMS[idx]?.onHand ?? 0);
+          }}
+          allowDeselect={false}
+        />
         <SimpleGrid cols={2}>
-          <NumberInput label="คงเหลือในระบบ" value={260} disabled />
+          <NumberInput label="คงเหลือในระบบ" value={ITEMS[adjustIndex]?.onHand ?? 0} disabled />
           <NumberInput label="นับได้จริง" value={counted} onChange={setCounted} min={0} />
         </SimpleGrid>
         <Paper withBorder p="xs" radius="md">
           <Text size="sm">
-            ผลต่าง: <b>{Number(counted) - 260}</b>
+            ผลต่าง: <b>{Number(counted) - (ITEMS[adjustIndex]?.onHand ?? 0)}</b>
           </Text>
         </Paper>
         <Textarea label="เหตุผล" placeholder="เช่น นับสต็อกประจำวัน" />

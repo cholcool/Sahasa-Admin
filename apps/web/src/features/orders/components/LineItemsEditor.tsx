@@ -12,8 +12,15 @@ import {
 import { IconSearch, IconTrash } from '@tabler/icons-react';
 import { useState } from 'react';
 import { lineTotal } from '@/features/orders/order-math';
-import type { Product } from '@/features/orders/mock-data';
 import { formatBaht, formatNumber } from '@/lib/format';
+
+/** Product choice for the editor, priced for the order's channel */
+export interface Product {
+  id: string;
+  name: string;
+  unit: string;
+  price: number;
+}
 
 export interface EditableLine {
   productId: string;

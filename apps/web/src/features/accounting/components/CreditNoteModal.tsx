@@ -2,20 +2,51 @@ import { NumberInput, Paper, Radio, Select, Stack, Table, Text } from '@mantine/
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { KeyValue } from '@/components/ui/KeyValue';
+import { createCreditNote, nextDocumentNo, nowThai } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
 import { formatBaht } from '@/lib/format';
 
-const LINES = [
-  { name: 'เต้าหู้ แพ็ค 10', qty: 5, price: 190 },
-  { name: 'น้ำจิ้ม 400g', qty: 2, price: 125 },
-  { name: 'ค่าขนส่ง', qty: 1, price: 50 },
-];
+const REASONS = {
+  cancel: 'ยกเลิก Order',
+  return: 'คืนสินค้าบางส่วน',
+  discount: 'ลดราคา',
+} as const;
+
+type Reason = keyof typeof REASONS;
 
 /** Modal · สร้างใบลดหนี้ (credit notes page + invoice preview) */
-export function CreditNoteModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const [reason, setReason] = useState('cancel');
-  const [qty, setQty] = useState(() => LINES.map((l) => l.qty));
-  const original = LINES.reduce((s, l) => s + l.qty * l.price, 0);
-  const credit = LINES.reduce((s, l, i) => s + (qty[i] ?? 0) * l.price, 0);
+export function CreditNoteModal({
+  opened,
+  onClose,
+  initialInvoiceNo,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  initialInvoiceNo?: string;
+}) {
+  const db = useMockDb();
+  const credited = new Set(db.creditNotes.filter((c) => !c.voided).map((c) => c.invoiceNo));
+  const invoices = db.documents
+    .filter((d) => !credited.has(d.no))
+    .slice()
+    .toReversed();
+  const [invoiceNo, setInvoiceNo] = useState<string | null>(
+    initialInvoiceNo ?? invoices[0]?.no ?? null,
+  );
+  const doc = db.documents.find((d) => d.no === invoiceNo);
+  const order = db.orders.find((o) => o.orderNumber === doc?.orderNumber);
+  const lines = [
+    ...(order?.lines ?? []).map((l) => ({ name: l.name, qty: l.qty, price: l.price })),
+    ...(order && order.shippingFee > 0
+      ? [{ name: 'ค่าขนส่ง', qty: 1, price: order.shippingFee }]
+      : []),
+  ];
+  const [reason, setReason] = useState<Reason>(order?.status === 'cancelled' ? 'cancel' : 'return');
+  const [qty, setQty] = useState<number[] | null>(null);
+  const quantities =
+    reason === 'cancel' || !qty ? lines.map((l) => (reason === 'cancel' ? l.qty : 0)) : qty;
+  const original = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const credit = lines.reduce((s, l, i) => s + (quantities[i] ?? 0) * l.price, 0);
 
   return (
     <ConfirmModal
@@ -23,20 +54,32 @@ export function CreditNoteModal({ opened, onClose }: { opened: boolean; onClose:
       onClose={onClose}
       title="สร้างใบลดหนี้"
       confirmLabel="ออกใบลดหนี้"
-      doneMessage="ออกใบลดหนี้ CN-2611-0004 แล้ว"
+      confirmDisabled={!doc || credit <= 0}
+      doneMessage={`ออกใบลดหนี้ ${nextDocumentNo(db, 'CN', nowThai())} แล้ว`}
+      onConfirm={() => doc && createCreditNote(doc.no, REASONS[reason], credit)}
     >
       <Select
         label="อ้างอิงบิลเดิม"
         withAsterisk
-        data={['INV-2611-0040 · ร้านเจ๊หมวย · ฿1,250.00', 'INV-2611-0042 · บจก. สยามฟู้ด · ฿2,850.00']}
-        defaultValue="INV-2611-0040 · ร้านเจ๊หมวย · ฿1,250.00"
+        searchable
+        data={invoices.map((d) => ({
+          value: d.no,
+          label: `${d.no} · ${d.customerName} · ${formatBaht(d.total, { decimals: true })}`,
+        }))}
+        value={invoiceNo}
+        onChange={(v) => {
+          setInvoiceNo(v);
+          setQty(null);
+        }}
+        nothingFoundMessage="ไม่พบเอกสาร"
       />
       <Radio.Group
         label="เหตุผล"
         value={reason}
         onChange={(v) => {
-          setReason(v);
-          if (v === 'cancel') setQty(LINES.map((l) => l.qty));
+          const next = v === 'cancel' || v === 'discount' ? v : 'return';
+          setReason(next);
+          setQty(null);
         }}
       >
         <Stack gap="xs" mt="xs">
@@ -55,7 +98,7 @@ export function CreditNoteModal({ opened, onClose }: { opened: boolean; onClose:
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {LINES.map((l, i) => (
+          {lines.map((l, i) => (
             <Table.Tr key={l.name}>
               <Table.Td>{l.name}</Table.Td>
               <Table.Td ta="right">{l.qty}</Table.Td>
@@ -64,13 +107,13 @@ export function CreditNoteModal({ opened, onClose }: { opened: boolean; onClose:
                   size="xs"
                   min={0}
                   max={l.qty}
-                  value={qty[i]}
+                  value={quantities[i]}
                   disabled={reason === 'cancel'}
-                  onChange={(v) => setQty(qty.map((q, j) => (j === i ? Number(v) || 0 : q)))}
+                  onChange={(v) => setQty(quantities.map((q, j) => (j === i ? Number(v) || 0 : q)))}
                 />
               </Table.Td>
               <Table.Td ta="right">
-                {formatBaht((qty[i] ?? 0) * l.price, { decimals: true })}
+                {formatBaht((quantities[i] ?? 0) * l.price, { decimals: true })}
               </Table.Td>
             </Table.Tr>
           ))}
@@ -87,7 +130,7 @@ export function CreditNoteModal({ opened, onClose }: { opened: boolean; onClose:
           </KeyValue>
           <KeyValue label="เลขที่ถัดไป">
             <Text span ff="monospace" size="sm">
-              CN-2611-0004
+              {nextDocumentNo(db, 'CN', nowThai())}
             </Text>
           </KeyValue>
         </Stack>

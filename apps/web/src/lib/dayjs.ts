@@ -15,4 +15,9 @@ export function formatThaiDate(value: string | Date, pattern = 'D MMM BBBB'): st
   return dayjs(value).tz('Asia/Bangkok').format(pattern);
 }
 
+/** Today's date in Thai time as YYYY-MM-DD (for URL filters such as orderDateFrom) */
+export function todayIso(now: Date = new Date()): string {
+  return dayjs(now).tz('Asia/Bangkok').format('YYYY-MM-DD');
+}
+
 export { dayjs };

@@ -1,9 +1,10 @@
 import { Alert, Checkbox, NumberInput, Paper, Radio, Stack, Text } from '@mantine/core';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { KeyValue } from '@/components/ui/KeyValue';
-import { MOCK_PRODUCTS } from '@/features/orders/mock-data';
+import { useMockDb } from '@/features/mock/store';
 
 export interface UnmappedSku {
+  id?: string;
   platform: string;
   sku: string;
   name: string;
@@ -11,7 +12,16 @@ export interface UnmappedSku {
 }
 
 /** Modal · จับคู่ SKU (unmapped SKUs + master SKU mapping) */
-export function SkuMatchModal({ sku, onClose }: { sku: UnmappedSku | null; onClose: () => void }) {
+export function SkuMatchModal({
+  sku,
+  onClose,
+  onConfirm,
+}: {
+  sku: UnmappedSku | null;
+  onClose: () => void;
+  onConfirm?: (sku: UnmappedSku) => void;
+}) {
+  const db = useMockDb();
   return (
     <ConfirmModal
       opened={sku !== null}
@@ -19,6 +29,7 @@ export function SkuMatchModal({ sku, onClose }: { sku: UnmappedSku | null; onClo
       title="จับคู่ SKU"
       confirmLabel="บันทึกการจับคู่"
       doneMessage={sku?.orders ? `จับคู่ SKU แล้ว · ปลด flag ${sku.orders} Order` : 'บันทึกการจับคู่แล้ว'}
+      onConfirm={() => sku && onConfirm?.(sku)}
     >
       {sku && (
         <>
@@ -33,9 +44,9 @@ export function SkuMatchModal({ sku, onClose }: { sku: UnmappedSku | null; onClo
               <KeyValue label="ชื่อใน Platform">{sku.name}</KeyValue>
             </Stack>
           </Paper>
-          <Radio.Group label="สินค้าในระบบ" defaultValue={MOCK_PRODUCTS[0]?.id}>
+          <Radio.Group label="สินค้าในระบบ" defaultValue={db.products[0]?.id}>
             <Stack gap="xs" mt="xs">
-              {MOCK_PRODUCTS.map((p) => (
+              {db.products.map((p) => (
                 <Radio key={p.id} value={p.id} label={`${p.id} ${p.name}`} />
               ))}
             </Stack>

@@ -2,90 +2,119 @@ import { Group, Paper, Select, Stack, Text, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AnchorLink } from '@/components/ui/links';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { nowThai } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
+import type { OrderEventType } from '@/features/mock/types';
 import { ExportExcelButton } from '@/features/reports/components/ReportFilters';
+import { dayjs, formatThaiDate } from '@/lib/dayjs';
 
-/** 10-03 Audit log (SRS 62) */
+/** 10-03 Audit log (SRS 62) — built from every order's history */
 export const Route = createFileRoute('/_app/users/audit')({
   component: AuditLogPage,
 });
 
-type Action = 'edit' | 'after_cutoff' | 'cancel' | 'confirm' | 'create';
+type Action = 'edit' | 'after_cutoff' | 'cancel' | 'confirm' | 'create' | 'status';
 
 const ACTION: Record<Action, { label: string; color: string }> = {
+  create: { label: 'สร้าง', color: 'gray' },
   edit: { label: 'แก้ไข', color: 'orange' },
   after_cutoff: { label: 'เพิ่มหลังตัดรอบ', color: 'blue' },
-  cancel: { label: 'ยกเลิก', color: 'brand' },
   confirm: { label: 'ยืนยัน', color: 'green' },
-  create: { label: 'สร้าง', color: 'gray' },
+  status: { label: 'อัปเดตสถานะ', color: 'blue' },
+  cancel: { label: 'ยกเลิก', color: 'brand' },
 };
 
-const LOGS = [
-  {
-    id: 1,
-    at: '13 พ.ย. 10:42',
-    user: 'Sales01',
-    action: 'edit' as Action,
-    doc: 'ORD-000128',
-    field: 'จำนวนเต้าหู้',
-    before: '4',
-    after: '5',
-  },
-  {
-    id: 2,
-    at: '13 พ.ย. 10:15',
-    user: 'หัวหน้า Sales',
-    action: 'after_cutoff' as Action,
-    doc: 'ORD-000150',
-    field: 'รอบส่ง',
-    before: '14 พ.ย. 12:00',
-    after: '13 พ.ย. 12:00',
-  },
-  {
-    id: 3,
-    at: '13 พ.ย. 09:58',
-    user: 'Admin',
-    action: 'cancel' as Action,
-    doc: 'ORD-000117',
-    field: 'สถานะ',
-    before: 'โรงงานรับแล้ว',
-    after: 'ยกเลิก · ลูกค้าขอยกเลิก',
-  },
-  {
-    id: 4,
-    at: '13 พ.ย. 09:40',
-    user: 'บัญชี01',
-    action: 'confirm' as Action,
-    doc: 'ORD-000141',
-    field: 'การรับเงิน',
-    before: 'รอยืนยัน',
-    after: 'รับเงินแล้ว ฿1,259',
-  },
-  {
-    id: 5,
-    at: '13 พ.ย. 09:12',
-    user: 'Sales01',
-    action: 'create' as Action,
-    doc: 'ORD-000141',
-    field: undefined,
-    before: undefined,
-    after: 'ช่องทาง Line',
-  },
+const ACTION_OF: Record<OrderEventType, Action> = {
+  created: 'create',
+  edited: 'edit',
+  payment: 'confirm',
+  confirmed: 'confirm',
+  accepted: 'status',
+  shipped: 'status',
+  delivered: 'status',
+  short: 'status',
+  invoiced: 'status',
+  cancelled: 'cancel',
+};
+
+const PERIODS = [
+  { value: '1', label: 'วันนี้' },
+  { value: '7', label: '7 วันล่าสุด' },
+  { value: '30', label: '30 วัน' },
+  { value: 'all', label: 'ทั้งหมด' },
 ];
 
+const PAGE_SIZE = 30;
+
 function AuditLogPage() {
+  const db = useMockDb();
   const [action, setAction] = useState<string | null>(null);
-  const rows = LOGS.filter((l) => !action || l.action === action);
+  const [period, setPeriod] = useState<string | null>('7');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const now = nowThai();
+
+  const all = useMemo(
+    () =>
+      db.orders
+        .flatMap((o) =>
+          o.history.map((h, i) => ({
+            id: `${o.orderNumber}-${i}`,
+            at: h.at,
+            user: h.by,
+            action:
+              h.type === 'created' && o.insertedAfterCutoff
+                ? ('after_cutoff' as const)
+                : ACTION_OF[h.type],
+            doc: o.orderNumber,
+            detail: h.text,
+          })),
+        )
+        .toSorted((a, b) => b.at.localeCompare(a.at)),
+    [db.orders],
+  );
+
+  const since =
+    period === 'all'
+      ? ''
+      : dayjs(now)
+          .subtract(Number(period) - 1, 'day')
+          .startOf('day')
+          .format();
+  const query = q.trim().toLowerCase();
+  const rows = all.filter(
+    (l) =>
+      l.at <= now &&
+      (!since || dayjs(l.at).isAfter(since)) &&
+      (!action || l.action === action) &&
+      (!query || l.doc.toLowerCase().includes(query) || l.user.toLowerCase().includes(query)),
+  );
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const reset = () => setPage(1);
 
   return (
     <Stack>
       <PageHeader
         title="Audit log"
-        description="ประวัติผู้แก้ไข/ยกเลิก เวลา ค่าก่อนและหลัง"
-        actions={<ExportExcelButton />}
+        description="ประวัติผู้สร้าง/แก้ไข/ยกเลิก และการเปลี่ยนสถานะ พร้อมเวลา"
+        actions={
+          <ExportExcelButton
+            filename="audit-log"
+            rows={() =>
+              rows.map((r) => ({
+                เวลา: formatThaiDate(r.at, 'D MMM BBBB HH:mm'),
+                ผู้ใช้: r.user,
+                การกระทำ: ACTION[r.action].label,
+                เอกสาร: r.doc,
+                รายละเอียด: r.detail,
+              }))
+            }
+          />
+        }
       />
       <Paper withBorder radius="lg" p="md">
         <Stack>
@@ -94,23 +123,47 @@ function AuditLogPage() {
               miw={220}
               leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเลขเอกสารหรือผู้ใช้"
+              value={q}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+                reset();
+              }}
             />
             <Select
               placeholder="ทุกการกระทำ"
               clearable
               data={Object.entries(ACTION).map(([value, a]) => ({ value, label: a.label }))}
               value={action}
-              onChange={setAction}
+              onChange={(v) => {
+                setAction(v);
+                reset();
+              }}
             />
-            <Select data={['7 วันล่าสุด', 'วันนี้', '30 วัน']} defaultValue="7 วันล่าสุด" />
+            <Select
+              aria-label="ช่วงเวลา"
+              data={PERIODS}
+              value={period}
+              onChange={(v) => {
+                setPeriod(v);
+                reset();
+              }}
+              allowDeselect={false}
+            />
           </Group>
           <DataTable
             withTableBorder
             borderRadius="md"
-            records={rows}
+            minHeight={200}
+            idAccessor="id"
+            records={pageRows}
+            totalRecords={rows.length}
+            recordsPerPage={PAGE_SIZE}
+            page={page}
+            onPageChange={setPage}
+            paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
             noRecordsText="ไม่มีรายการ"
             columns={[
-              { accessor: 'at', title: 'เวลา' },
+              { accessor: 'at', title: 'เวลา', render: (r) => formatThaiDate(r.at, 'D MMM HH:mm') },
               { accessor: 'user', title: 'ผู้ใช้' },
               {
                 accessor: 'action',
@@ -128,29 +181,12 @@ function AuditLogPage() {
                   </AnchorLink>
                 ),
               },
-              { accessor: 'field', title: 'ฟิลด์', render: (r) => r.field ?? '—' },
               {
-                accessor: 'before',
-                title: 'ค่าเดิม',
-                render: (r) =>
-                  r.before ? (
-                    <Text
-                      size="sm"
-                      c="dimmed"
-                      td={r.action === 'edit' ? 'line-through' : undefined}
-                    >
-                      {r.before}
-                    </Text>
-                  ) : (
-                    '—'
-                  ),
-              },
-              {
-                accessor: 'after',
-                title: 'ค่าใหม่',
+                accessor: 'detail',
+                title: 'รายละเอียด',
                 render: (r) => (
-                  <Text size="sm" fw={r.action === 'create' ? 400 : 700}>
-                    {r.after}
+                  <Text size="sm" fw={r.action === 'edit' || r.action === 'cancel' ? 600 : 400}>
+                    {r.detail}
                   </Text>
                 ),
               },

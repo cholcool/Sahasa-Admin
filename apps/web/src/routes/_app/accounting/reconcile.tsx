@@ -14,6 +14,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconUpload } from '@tabler/icons-react';
+import type { Channel } from '@sahasa/shared';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
 import { useState } from 'react';
@@ -22,7 +23,9 @@ import { KeyValue } from '@/components/ui/KeyValue';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatGrid } from '@/components/ui/StatCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { formatAmount } from '@/lib/format';
+import { useMockDb } from '@/features/mock/store';
+import { dayjs, formatThaiDate } from '@/lib/dayjs';
+import { formatAmount, formatBaht } from '@/lib/format';
 
 /** 05-04 Marketplace payout reconciliation (SRS 34) */
 export const Route = createFileRoute('/_app/accounting/reconcile')({
@@ -39,45 +42,6 @@ interface ReconRow {
   received: number;
 }
 
-const ROWS: ReconRow[] = [
-  {
-    order: 'ORD-000101',
-    platformNo: '2611080AB12',
-    paidAt: '15 พ.ย.',
-    amount: 380,
-    fee: -22.8,
-    shipping: -40,
-    received: 275,
-  },
-  {
-    order: 'ORD-000097',
-    platformNo: '2611071CD45',
-    paidAt: '15 พ.ย.',
-    amount: 570,
-    fee: -34.2,
-    shipping: -40,
-    received: 452,
-  },
-  {
-    order: 'ORD-000095',
-    platformNo: '2611071EF78',
-    paidAt: '15 พ.ย.',
-    amount: 190,
-    fee: -11.4,
-    shipping: -40,
-    received: 138.6,
-  },
-  {
-    order: 'ORD-000094',
-    platformNo: '2611069GH90',
-    paidAt: '15 พ.ย.',
-    amount: 950,
-    fee: -57,
-    shipping: -40,
-    received: 853,
-  },
-];
-
 /** Expected payout and difference, in satang to avoid float drift */
 function reconcile(r: ReconRow) {
   const expected = Math.round((r.amount + r.fee + r.shipping) * 100);
@@ -85,16 +49,52 @@ function reconcile(r: ReconRow) {
   return { expected: expected / 100, diff: diff / 100 };
 }
 
+const PLATFORMS: { label: string; channel: Channel }[] = [
+  { label: 'Shopee', channel: 'shopee' },
+  { label: 'Lazada', channel: 'lazada' },
+  { label: 'TikTok Shop', channel: 'tiktok' },
+];
+
+const PAGE_SIZE = 25;
+
+function periodLabel(paidAt: string): string {
+  const d = dayjs(paidAt);
+  const from = d.date() === 16 ? d.date(1) : d.subtract(1, 'month').date(16);
+  const to = d.date() === 16 ? d.date(15) : d.subtract(1, 'day');
+  return `รอบโอน ${from.date()}–${to.date()} ${formatThaiDate(to.format('YYYY-MM-DD'), 'MMM BBBB')}`;
+}
+
 function ReconcilePage() {
+  const db = useMockDb();
   const [platform, setPlatform] = useState('Shopee');
   const [tab, setTab] = useState<string | null>('all');
+  const [page, setPage] = useState(1);
   const [uploadOpened, upload] = useDisclosure(false);
   const [checking, setChecking] = useState<ReconRow | null>(null);
 
-  const rows = ROWS.filter((r) => {
-    const bad = reconcile(r).diff !== 0;
-    return tab === 'all' || (tab === 'bad' ? bad : !bad);
+  const channel = PLATFORMS.find((p) => p.label === platform)?.channel ?? 'shopee';
+  const payouts = [...new Set(db.settlements.map((s) => s.paidAt))].toSorted().toReversed();
+  const [period, setPeriod] = useState<string | null>(payouts[0] ?? null);
+  const all: ReconRow[] = db.settlements
+    .filter((s) => s.channel === channel && s.paidAt === period)
+    .map((s) => ({
+      order: s.orderNumber,
+      platformNo: s.platformOrderNo,
+      paidAt: formatThaiDate(s.paidAt, 'D MMM'),
+      amount: s.amount,
+      fee: s.fee,
+      shipping: s.shipping,
+      received: s.received,
+    }));
+  const bad = all.filter((r) => reconcile(r).diff !== 0);
+  const rows = all.filter((r) => {
+    const isBad = reconcile(r).diff !== 0;
+    return tab === 'all' || (tab === 'bad' ? isBad : !isBad);
   });
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const total = (key: 'amount' | 'fee' | 'shipping' | 'received') =>
+    all.reduce((sum, r) => sum + Math.round(r[key] * 100), 0) / 100;
+  const diffTotal = bad.reduce((sum, r) => sum + Math.round(reconcile(r).diff * 100), 0) / 100;
 
   return (
     <Stack>
@@ -111,37 +111,65 @@ function ReconcilePage() {
         <SegmentedControl
           radius="xl"
           value={platform}
-          onChange={setPlatform}
-          data={['Shopee', 'Lazada', 'TikTok Shop']}
+          onChange={(v) => {
+            setPlatform(v);
+            setPage(1);
+          }}
+          data={PLATFORMS.map((p) => p.label)}
         />
         <Select
-          data={['รอบโอน 1–15 พ.ย. 2569', 'รอบโอน 16–31 ต.ค. 2569']}
-          defaultValue="รอบโอน 1–15 พ.ย. 2569"
-          w={220}
+          aria-label="รอบโอน"
+          data={payouts.map((p) => ({ value: p, label: periodLabel(p) }))}
+          value={period}
+          onChange={(v) => {
+            setPeriod(v);
+            setPage(1);
+          }}
+          placeholder="ยังไม่มีรอบโอน"
+          w={240}
         />
       </Group>
       <StatGrid
         items={[
-          { label: 'ยอด Order', value: '฿184,200', color: 'blue' },
-          { label: 'ค่าธรรมเนียม', value: '-฿11,052', color: 'orange' },
-          { label: 'ค่าส่ง', value: '-฿3,960', color: 'orange' },
-          { label: 'ยอดโอนจริง', value: '฿169,062', color: 'green' },
-          { label: 'ส่วนต่าง', value: '-฿126', color: 'brand', hint: 'ไม่ตรง 3 รายการ' },
+          { label: 'ยอด Order', value: formatBaht(total('amount')), color: 'blue' },
+          { label: 'ค่าธรรมเนียม', value: formatBaht(total('fee')), color: 'orange' },
+          { label: 'ค่าส่ง', value: formatBaht(total('shipping')), color: 'orange' },
+          { label: 'ยอดโอนจริง', value: formatBaht(total('received')), color: 'green' },
+          {
+            label: 'ส่วนต่าง',
+            value: formatBaht(diffTotal),
+            color: 'brand',
+            hint: `ไม่ตรง ${bad.length} รายการ`,
+          },
         ]}
       />
       <Paper withBorder radius="lg" p="md">
-        <Tabs value={tab} onChange={setTab} mb="sm">
+        <Tabs
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setPage(1);
+          }}
+          mb="sm"
+        >
           <Tabs.List>
-            <Tabs.Tab value="all">ทั้งหมด (412)</Tabs.Tab>
-            <Tabs.Tab value="bad">ไม่ตรง (3)</Tabs.Tab>
-            <Tabs.Tab value="ok">ตรง (409)</Tabs.Tab>
+            <Tabs.Tab value="all">ทั้งหมด ({all.length})</Tabs.Tab>
+            <Tabs.Tab value="bad">ไม่ตรง ({bad.length})</Tabs.Tab>
+            <Tabs.Tab value="ok">ตรง ({all.length - bad.length})</Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <DataTable
           withTableBorder
           borderRadius="md"
           idAccessor="order"
-          records={rows}
+          records={pageRows}
+          totalRecords={rows.length}
+          recordsPerPage={PAGE_SIZE}
+          page={page}
+          onPageChange={setPage}
+          minHeight={200}
+          noRecordsText="ไม่มีรายการในรอบโอนนี้"
+          paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
           rowColor={(r) => (reconcile(r).diff !== 0 ? 'brand' : undefined)}
           columns={[
             {
@@ -232,7 +260,7 @@ function ReconcilePage() {
         onClose={upload.close}
         title="อัปโหลดไฟล์ยอดโอน"
         confirmLabel="อัปโหลดและกระทบยอด"
-        doneMessage="กระทบยอด 412 รายการแล้ว · ไม่ตรง 3"
+        doneMessage={`กระทบยอด ${all.length} รายการแล้ว · ไม่ตรง ${bad.length}`}
       >
         <Select
           label="Platform"
@@ -264,7 +292,7 @@ function ReconcilePage() {
             <Paper withBorder p="sm" radius="md">
               <Stack gap={4}>
                 <KeyValue label="ยอด Order">{formatAmount(checking.amount)}</KeyValue>
-                <KeyValue label="ค่าธรรมเนียม (ตามสัญญา 6%)">{formatAmount(checking.fee)}</KeyValue>
+                <KeyValue label="ค่าธรรมเนียม (ตามสัญญา)">{formatAmount(checking.fee)}</KeyValue>
                 <KeyValue label="ค่าส่ง">{formatAmount(checking.shipping)}</KeyValue>
                 <KeyValue label="ควรได้รับ">{formatAmount(reconcile(checking).expected)}</KeyValue>
                 <KeyValue label="Platform โอนจริง">{formatAmount(checking.received)}</KeyValue>

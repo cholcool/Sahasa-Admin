@@ -7,74 +7,47 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ExportExcelButton } from '@/features/reports/components/ReportFilters';
 import { StockDraftBanner } from '@/features/stock/components/StockDraftBanner';
+import { nowThai } from '@/features/mock/actions';
+import { stockMovements, type StockMove } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
+import { formatThaiDate } from '@/lib/dayjs';
 
 /** 09-03 Stock movement ledger (SRS 59, draft) */
 export const Route = createFileRoute('/_app/stock/ledger')({
   component: StockLedgerPage,
 });
 
-type MoveType = 'order' | 'waste' | 'receive' | 'adjust';
+type MoveType = StockMove['type'];
 
 const TYPE: Record<MoveType, { label: string; color: string }> = {
   order: { label: 'ตัดจาก Order', color: 'blue' },
-  waste: { label: 'ของเสีย', color: 'brand' },
   receive: { label: 'รับเข้า', color: 'green' },
   adjust: { label: 'ปรับยอด', color: 'orange' },
 };
 
-const MOVES = [
-  {
-    id: 1,
-    at: '13 พ.ย. 10:42',
-    type: 'order' as MoveType,
-    ref: 'ORD-000141',
-    product: 'เต้าหู้ แพ็ค 10',
-    in: 0,
-    out: 5,
-    balance: 260,
-    by: 'ระบบ',
-  },
-  {
-    id: 2,
-    at: '13 พ.ย. 08:10',
-    type: 'waste' as MoveType,
-    ref: 'ADJ-0031',
-    product: 'เต้าหู้ แพ็ค 10',
-    in: 0,
-    out: 4,
-    balance: 265,
-    by: 'โรงงาน01',
-  },
-  {
-    id: 3,
-    at: '13 พ.ย. 06:30',
-    type: 'receive' as MoveType,
-    ref: 'L-261113-A',
-    product: 'เต้าหู้ แพ็ค 10',
-    in: 180,
-    out: 0,
-    balance: 269,
-    by: 'โรงงาน01',
-  },
-  {
-    id: 4,
-    at: '12 พ.ย. 16:00',
-    type: 'adjust' as MoveType,
-    ref: 'ADJ-0030',
-    product: 'น้ำจิ้ม 400g',
-    in: 0,
-    out: 2,
-    balance: 410,
-    by: 'Admin',
-  },
-];
+const PAGE_SIZE = 30;
 
 function StockLedgerPage() {
   const [type, setType] = useState<string | null>(null);
   const [product, setProduct] = useState<string | null>(null);
-  const rows = MOVES.filter(
-    (m) => (!type || m.type === type) && (!product || m.product === product),
-  );
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const db = useMockDb();
+  const nameOf = (id: string) => db.products.find((p) => p.id === id)?.name ?? id;
+  const query = q.trim().toLowerCase();
+  const rows = stockMovements(db, nowThai())
+    .filter(
+      (m) =>
+        (!type || m.type === type) &&
+        (!product || m.productId === product) &&
+        (!query || m.ref.toLowerCase().includes(query)),
+    )
+    .map((m) => ({
+      ...m,
+      product: nameOf(m.productId),
+      atText: formatThaiDate(m.at, 'D MMM HH:mm'),
+    }));
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <Stack>
@@ -82,7 +55,23 @@ function StockLedgerPage() {
       <PageHeader
         title="ประวัติการเคลื่อนไหว"
         description="รายการเข้า-ออกของสินค้า"
-        actions={<ExportExcelButton />}
+        actions={
+          <ExportExcelButton
+            filename="stock-ledger"
+            rows={() =>
+              rows.map((r) => ({
+                วันเวลา: r.atText,
+                ประเภท: TYPE[r.type].label,
+                อ้างอิง: r.ref,
+                สินค้า: r.product,
+                เข้า: r.in,
+                ออก: r.out,
+                คงเหลือ: r.balance,
+                ผู้บันทึก: r.by,
+              }))
+            }
+          />
+        }
       />
       <Paper withBorder radius="lg" p="md">
         <Stack>
@@ -91,29 +80,47 @@ function StockLedgerPage() {
               miw={220}
               leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเอกสารอ้างอิง"
+              value={q}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+                setPage(1);
+              }}
             />
             <Select
               placeholder="ทุกสินค้า"
               clearable
-              data={['เต้าหู้ แพ็ค 10', 'น้ำจิ้ม 400g']}
+              data={db.products.map((p) => ({ value: p.id, label: p.name }))}
               value={product}
-              onChange={setProduct}
+              onChange={(v) => {
+                setProduct(v);
+                setPage(1);
+              }}
             />
             <Select
               placeholder="ทุกประเภท"
               clearable
               data={Object.entries(TYPE).map(([value, t]) => ({ value, label: t.label }))}
               value={type}
-              onChange={setType}
+              onChange={(v) => {
+                setType(v);
+                setPage(1);
+              }}
             />
           </Group>
           <DataTable
             withTableBorder
             borderRadius="md"
-            records={rows}
+            idAccessor="id"
+            minHeight={200}
+            records={pageRows}
+            totalRecords={rows.length}
+            recordsPerPage={PAGE_SIZE}
+            page={page}
+            onPageChange={setPage}
+            paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
             noRecordsText="ไม่มีรายการ"
             columns={[
-              { accessor: 'at', title: 'วันเวลา' },
+              { accessor: 'atText', title: 'วันเวลา' },
               {
                 accessor: 'type',
                 title: 'ประเภท',

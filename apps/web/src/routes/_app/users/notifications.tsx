@@ -11,13 +11,18 @@ import {
   Text,
   ThemeIcon,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { IconAlertTriangle, IconCash, IconPlugConnectedX, IconTag } from '@tabler/icons-react';
+import { CHANNELS } from '@sahasa/shared';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { EditedAfterAcceptModal } from '@/features/factory/components/FactoryModals';
+import { nowThai } from '@/features/mock/actions';
+import { useMockDb } from '@/features/mock/store';
+import type { MockDb, MockOrder } from '@/features/mock/types';
+import { CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import { dayjs, formatThaiDate } from '@/lib/dayjs';
 import { notifyDone } from '@/lib/notify';
 
 /** 10-04 Notification center (SRS 63) */
@@ -38,10 +43,10 @@ const KINDS: Kind[] = ['sku', 'api', 'ord', 'pay'];
 
 type Action =
   | { label: string; to: '/platforms/unmapped-sku' | '/platforms/logs' }
-  | { label: string; modal: true };
+  | { label: string; order: MockOrder };
 
 interface Notice {
-  id: number;
+  id: string;
   kind: Kind;
   title: string;
   detail: string;
@@ -50,59 +55,101 @@ interface Notice {
   action?: Action;
 }
 
-const NOTICES: Notice[] = [
-  {
-    id: 1,
-    kind: 'sku',
-    title: 'SKU จับคู่ไม่ได้ 2 รายการ',
-    detail: 'Shopee TOFU-10-PROMO · TikTok SAUCE400-NEW · กระทบ 6 Order',
-    ago: '5 นาทีที่แล้ว',
-    unread: true,
-    action: { label: 'จับคู่', to: '/platforms/unmapped-sku' },
-  },
-  {
-    id: 2,
-    kind: 'api',
-    title: 'API error: Lazada',
-    detail: 'ดึงออเดอร์ไม่สำเร็จ 10:45 · Access token หมดอายุ',
-    ago: '10 นาทีที่แล้ว',
-    unread: true,
-    action: { label: 'ดู Log', to: '/platforms/logs' },
-  },
-  {
-    id: 3,
-    kind: 'ord',
-    title: 'Order ถูกแก้ไขหลังโรงงานรับ',
-    detail: 'ORD-000128 · จำนวนเต้าหู้ 4 → 5 · Sales01',
-    ago: '20 นาทีที่แล้ว',
-    unread: true,
-    action: { label: 'ดู', modal: true },
-  },
-  {
-    id: 4,
-    kind: 'ord',
-    title: 'Order ถูกยกเลิกหลังโรงงานรับ',
-    detail: 'ORD-000117 · ลูกค้าขอยกเลิก · Admin',
-    ago: '45 นาทีที่แล้ว',
-    unread: false,
-  },
-  {
-    id: 5,
-    kind: 'pay',
-    title: 'Order Manual รอยืนยันรับเงิน 4 รายการ',
-    detail: 'Line 3 · Facebook 1',
-    ago: '1 ชม. ที่แล้ว',
-    unread: false,
-  },
-  {
-    id: 6,
-    kind: 'api',
-    title: 'API error: Inter Express',
-    detail: 'ดึงสถานะขนส่ง timeout · Re-sync สำเร็จแล้ว',
-    ago: '2 ชม. ที่แล้ว',
-    unread: false,
-  },
-];
+function ago(at: string, now: string): string {
+  const mins = Math.max(0, dayjs(now).diff(dayjs(at), 'minute'));
+  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  if (mins < 60 * 24) return `${Math.floor(mins / 60)} ชม. ที่แล้ว`;
+  return `${Math.floor(mins / 60 / 24)} วันที่แล้ว`;
+}
+
+/** Notifications derived from the current mock data */
+function buildNotices(db: MockDb, now: string): Notice[] {
+  const list: (Notice & { at: string })[] = [];
+  const recent = (at: string) => dayjs(now).diff(dayjs(at), 'hour') < 24;
+  const sku = db.unmappedSkus;
+  const lastSku = sku
+    .map((u) => u.at)
+    .toSorted()
+    .at(-1);
+  if (sku.length > 0 && lastSku) {
+    list.push({
+      id: 'sku',
+      kind: 'sku',
+      title: `SKU จับคู่ไม่ได้ ${sku.length} รายการ`,
+      detail: sku.map((u) => `${u.platform} ${u.sku}`).join(' · '),
+      at: lastSku,
+      ago: '',
+      unread: true,
+      action: { label: 'จับคู่', to: '/platforms/unmapped-sku' },
+    });
+  }
+  for (const l of db.platformLogs.filter((x) => !x.ok && x.at <= now).slice(0, 3)) {
+    list.push({
+      id: l.id,
+      kind: 'api',
+      title: `API error: ${l.platform}`,
+      detail: `${l.action}ไม่สำเร็จ ${formatThaiDate(l.at, 'D MMM HH:mm')} · ${l.message}`,
+      at: l.at,
+      ago: '',
+      unread: recent(l.at),
+      action: { label: 'ดู Log', to: '/platforms/logs' },
+    });
+  }
+  for (const o of db.orders) {
+    const edit = o.editedAfterAccept
+      ? o.history.filter((h) => h.type === 'edited').at(-1)
+      : undefined;
+    if (edit && edit.at <= now) {
+      list.push({
+        id: `e-${o.orderNumber}`,
+        kind: 'ord',
+        title: 'Order ถูกแก้ไขหลังโรงงานรับ',
+        detail: `${o.orderNumber} · ${edit.text}`,
+        at: edit.at,
+        ago: '',
+        unread: recent(edit.at),
+        action: { label: 'ดู', order: o },
+      });
+    }
+    if (o.status === 'cancelled' && o.acceptedAt && o.cancelledAt && o.cancelledAt <= now) {
+      list.push({
+        id: `c-${o.orderNumber}`,
+        kind: 'ord',
+        title: 'Order ถูกยกเลิกหลังโรงงานรับ',
+        detail: `${o.orderNumber} · ${o.cancelReason ?? ''}`,
+        at: o.cancelledAt,
+        ago: '',
+        unread: recent(o.cancelledAt),
+      });
+    }
+  }
+  const awaiting = db.orders.filter(
+    (o) => o.payment === 'awaiting' && o.status !== 'cancelled' && o.orderedAt <= now,
+  );
+  const lastAwaiting = awaiting
+    .map((o) => o.orderedAt)
+    .toSorted()
+    .at(-1);
+  if (lastAwaiting) {
+    const by = CHANNELS.map((c) => [c, awaiting.filter((o) => o.channel === c).length] as const)
+      .filter(([, n]) => n > 0)
+      .map(([c, n]) => `${CHANNEL_LABEL_TH[c]} ${n}`)
+      .join(' · ');
+    list.push({
+      id: 'pay',
+      kind: 'pay',
+      title: `Order Manual รอยืนยันรับเงิน ${awaiting.length} รายการ`,
+      detail: by,
+      at: lastAwaiting,
+      ago: '',
+      unread: recent(lastAwaiting),
+    });
+  }
+  return list
+    .toSorted((x, y) => y.at.localeCompare(x.at))
+    .slice(0, 30)
+    .map((n) => ({ ...n, ago: ago(n.at, now) }));
+}
 
 const RECIPIENTS = [
   { type: 'SKU จับคู่ไม่ได้', admin: true, factory: false, acc: false },
@@ -115,7 +162,9 @@ const RECIPIENTS = [
 function NotificationsPage() {
   const [tab, setTab] = useState<string | null>('all');
   const [readAll, setReadAll] = useState(false);
-  const [flagOpened, flag] = useDisclosure(false);
+  const [flagged, setFlagged] = useState<MockOrder | null>(null);
+  const db = useMockDb();
+  const NOTICES = buildNotices(db, nowThai());
   const rows = NOTICES.filter((n) => tab === 'all' || n.kind === tab);
   const count = (k: Kind) => NOTICES.filter((n) => n.kind === k).length;
 
@@ -188,7 +237,13 @@ function NotificationsPage() {
                           {n.action.label}
                         </Button>
                       ) : (
-                        <Button size="compact-xs" variant="default" onClick={flag.open}>
+                        <Button
+                          size="compact-xs"
+                          variant="default"
+                          onClick={() => {
+                            if (n.action && 'order' in n.action) setFlagged(n.action.order);
+                          }}
+                        >
                           {n.action.label}
                         </Button>
                       ))}
@@ -235,7 +290,11 @@ function NotificationsPage() {
           </SectionCard>
         </Grid.Col>
       </Grid>
-      <EditedAfterAcceptModal opened={flagOpened} onClose={flag.close} />
+      <EditedAfterAcceptModal
+        opened={flagged !== null}
+        onClose={() => setFlagged(null)}
+        order={flagged}
+      />
     </Stack>
   );
 }

@@ -19,34 +19,37 @@ import { SectionCard } from '@/components/ui/SectionCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { StockDraftBanner } from '@/features/stock/components/StockDraftBanner';
 import { notifyDone } from '@/lib/notify';
+import { addStockReceipt, nowThai } from '@/features/mock/actions';
+import { stockMovements } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
+import { dayjs, formatThaiDate, todayIso } from '@/lib/dayjs';
 
 /** 09-02 Receive from production / adjust stock (SRS 59, draft) */
 export const Route = createFileRoute('/_app/stock/receive')({
   component: StockReceivePage,
 });
 
-const PRODUCTS = [
-  { name: 'เต้าหู้คลองแงะ แพ็ค 10 ชิ้น', unit: 'แพ็ค' },
-  { name: 'น้ำจิ้ม 400g', unit: 'ขวด' },
-];
-
-const TODAY = [
-  { title: 'รับเข้าจากการผลิต', note: '06:30 · โรงงาน01', change: '+180 เต้าหู้', color: 'green' },
-  {
-    title: 'ของเสีย/เคลม',
-    note: '08:10 · พบเส้นผม (เคลม ORD-000099)',
-    change: '-4 เต้าหู้',
-    color: 'brand',
-  },
-  { title: 'ปรับยอดลด', note: '09:00 · นับสต็อก', change: '-2 น้ำจิ้ม', color: 'orange' },
-];
-
 function StockReceivePage() {
+  const db = useMockDb();
+  const today = todayIso();
   const [type, setType] = useState('รับเข้าจากการผลิต');
-  const [product, setProduct] = useState<string | null>(PRODUCTS[0]?.name ?? null);
+  const [product, setProduct] = useState<string | null>(db.products[0]?.id ?? null);
   const [qty, setQty] = useState<number | string>(180);
-  const unit = PRODUCTS.find((p) => p.name === product)?.unit ?? '';
+  const p = db.products.find((x) => x.id === product);
+  const unit = p?.unit ?? '';
   const isReceive = type === 'รับเข้าจากการผลิต';
+  const defaultLot = `LOT-${dayjs(today).format('YYMMDD')}-${p?.kind === 'sauce' ? 'S' : 'T'}`;
+  const [lot, setLot] = useState('');
+  const save = () => {
+    const n = Math.abs(Number(qty) || 0);
+    if (!p || n === 0) return;
+    const signed = type === 'รับเข้าจากการผลิต' || type === 'ปรับยอดเพิ่ม' ? n : -n;
+    addStockReceipt(p.id, signed, isReceive ? lot.trim() || defaultLot : `ปรับยอด (${type})`);
+    notifyDone(`บันทึก${type} ${n} ${unit}แล้ว`);
+  };
+  const todayMoves = stockMovements(db, nowThai())
+    .filter((m) => m.type !== 'order' && m.at.startsWith(today))
+    .slice(0, 6);
 
   return (
     <Stack>
@@ -65,7 +68,7 @@ function StockReceivePage() {
                 <Select
                   label="สินค้า"
                   withAsterisk
-                  data={PRODUCTS.map((p) => p.name)}
+                  data={db.products.map((x) => ({ value: x.id, label: x.name }))}
                   value={product}
                   onChange={setProduct}
                 />
@@ -80,8 +83,22 @@ function StockReceivePage() {
                 />
                 {isReceive && (
                   <>
-                    <TextInput label="Lot" defaultValue="L-261113-A" />
-                    <TextInput label="วันหมดอายุ" defaultValue="20/11/2569" />
+                    <TextInput
+                      label="Lot"
+                      placeholder={defaultLot}
+                      value={lot}
+                      onChange={(e) => setLot(e.currentTarget.value)}
+                    />
+                    <TextInput
+                      label="วันหมดอายุ"
+                      readOnly
+                      value={formatThaiDate(
+                        dayjs(today)
+                          .add(p?.kind === 'sauce' ? 90 : 7, 'day')
+                          .format('YYYY-MM-DD'),
+                        'DD/MM/BBBB',
+                      )}
+                    />
                   </>
                 )}
                 <Textarea
@@ -91,7 +108,7 @@ function StockReceivePage() {
                 />
               </SimpleGrid>
               <Group justify="flex-end">
-                <Button onClick={() => notifyDone(`บันทึก${type} ${qty} ${unit}แล้ว`)}>
+                <Button onClick={save} disabled={!p || !Number(qty)}>
                   บันทึกรายการ
                 </Button>
               </Group>
@@ -101,21 +118,31 @@ function StockReceivePage() {
         <Grid.Col span={{ base: 12, md: 4 }}>
           <SectionCard title="ล่าสุดวันนี้">
             <Stack gap="xs">
-              {TODAY.map((t) => (
-                <Paper key={t.note} withBorder p="sm" radius="md">
-                  <Group justify="space-between" wrap="nowrap">
-                    <div>
-                      <Text fw={600} size="sm">
-                        {t.title}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {t.note}
-                      </Text>
-                    </div>
-                    <StatusBadge color={t.color}>{t.change}</StatusBadge>
-                  </Group>
-                </Paper>
-              ))}
+              {todayMoves.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  ยังไม่มีรายการวันนี้
+                </Text>
+              )}
+              {todayMoves.map((t) => {
+                const name = db.products.find((x) => x.id === t.productId)?.shortName ?? '';
+                const change = t.in ? `+${t.in} ${name}` : `-${t.out} ${name}`;
+                return (
+                  <Paper key={t.id} withBorder p="sm" radius="md">
+                    <Group justify="space-between" wrap="nowrap">
+                      <div>
+                        <Text fw={600} size="sm">
+                          {t.type === 'receive' ? 'รับเข้าจากการผลิต' : t.ref}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {formatThaiDate(t.at, 'HH:mm')} · {t.by}
+                          {t.type === 'receive' && ` · ${t.ref}`}
+                        </Text>
+                      </div>
+                      <StatusBadge color={t.in ? 'green' : 'orange'}>{change}</StatusBadge>
+                    </Group>
+                  </Paper>
+                );
+              })}
             </Stack>
           </SectionCard>
         </Grid.Col>

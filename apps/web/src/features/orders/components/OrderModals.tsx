@@ -14,20 +14,30 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SlipThumbnails } from '@/features/orders/components/SlipThumbnails';
-import { CANCEL_REASONS } from '@/features/orders/labels';
+import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
+import { CANCEL_REASONS, CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import type { MockOrder, PaymentMethod } from '@/features/mock/types';
+import { nowThai } from '@/features/mock/actions';
+import { formatThaiDate } from '@/lib/dayjs';
 import { formatBaht } from '@/lib/format';
 
 interface ModalProps {
   opened: boolean;
   onClose: () => void;
-  orderNumber: string;
+  order: MockOrder;
 }
 
 /** Modal · ยกเลิก Order */
-export function CancelOrderModal({ opened, onClose, orderNumber }: ModalProps) {
+export function CancelOrderModal({
+  opened,
+  onClose,
+  order,
+  onConfirm,
+}: ModalProps & { onConfirm: (reason: string, note: string) => void }) {
   const [reason, setReason] = useState(CANCEL_REASONS[0] ?? '');
+  const [note, setNote] = useState('');
+  const accepted = order.status === 'factory_accepted';
   return (
     <ConfirmModal
       opened={opened}
@@ -35,20 +45,23 @@ export function CancelOrderModal({ opened, onClose, orderNumber }: ModalProps) {
       title="ยกเลิก Order"
       confirmLabel="ยืนยันการยกเลิก"
       confirmColor="brand"
-      doneMessage={`ยกเลิก ${orderNumber} แล้ว · แจ้งเตือนโรงงาน`}
+      doneMessage={`ยกเลิก ${order.orderNumber} แล้ว${accepted ? ' · แจ้งเตือนโรงงาน' : ''}`}
+      onConfirm={() => onConfirm(reason, note)}
     >
-      <Alert color="brand" variant="light">
-        Order นี้โรงงานรับแล้ว ระบบจะแจ้งเตือนโรงงานทันทีเมื่อยกเลิก
-      </Alert>
+      {accepted && (
+        <Alert color="brand" variant="light">
+          Order นี้โรงงานรับแล้ว ระบบจะแจ้งเตือนโรงงานทันทีเมื่อยกเลิก
+        </Alert>
+      )}
       <Paper withBorder p="sm" radius="md">
         <Group justify="space-between">
           <div>
-            <Text fw={600}>{orderNumber}</Text>
+            <Text fw={600}>{order.orderNumber}</Text>
             <Text size="xs" c="dimmed">
-              ร้านเจ๊หมวย · Line · ฿1,250
+              {order.customerName} · {CHANNEL_LABEL_TH[order.channel]} · {formatBaht(order.total)}
             </Text>
           </div>
-          <StatusBadge>โรงงานรับแล้ว</StatusBadge>
+          <OrderStatusBadge status={order.status} />
         </Group>
       </Paper>
       <Radio.Group label="เหตุผลการยกเลิก" withAsterisk value={reason} onChange={setReason}>
@@ -58,7 +71,12 @@ export function CancelOrderModal({ opened, onClose, orderNumber }: ModalProps) {
           ))}
         </Stack>
       </Radio.Group>
-      <Textarea label="หมายเหตุเพิ่มเติม" placeholder="ระบุรายละเอียด (ถ้ามี)" />
+      <Textarea
+        label="หมายเหตุเพิ่มเติม"
+        placeholder="ระบุรายละเอียด (ถ้ามี)"
+        value={note}
+        onChange={(e) => setNote(e.currentTarget.value)}
+      />
       <Text size="xs" c="dimmed">
         ระบบจะไม่ลบข้อมูล Order และจะออกใบลดหนี้หากออกบิลไปแล้ว
       </Text>
@@ -67,14 +85,24 @@ export function CancelOrderModal({ opened, onClose, orderNumber }: ModalProps) {
 }
 
 /** Modal · ยืนยันการรับเงิน */
+const METHODS: { label: string; value: PaymentMethod }[] = [
+  { label: 'โอน', value: 'transfer' },
+  { label: 'เงินสด', value: 'cash' },
+  { label: 'ชำระผ่าน Platform', value: 'platform' },
+];
+
 export function ConfirmPaymentModal({
   opened,
   onClose,
-  orderNumber,
-  amountDue,
-}: ModalProps & { amountDue: number }) {
-  const [method, setMethod] = useState('โอน');
-  const [received, setReceived] = useState<number | string>(1259);
+  order,
+  onConfirm,
+}: ModalProps & { onConfirm: (method: PaymentMethod, amount: number) => void }) {
+  const amountDue = order.total;
+  const orderNumber = order.orderNumber;
+  const [method, setMethod] = useState<string>(
+    order.paymentMethod === 'cash' ? 'cash' : 'transfer',
+  );
+  const [received, setReceived] = useState<number | string>(amountDue);
   const diff = Number(received) - amountDue;
   return (
     <ConfirmModal
@@ -84,6 +112,12 @@ export function ConfirmPaymentModal({
       confirmLabel="ยืนยันรับเงิน"
       confirmColor="gold"
       doneMessage="ยืนยันรับเงินแล้ว"
+      onConfirm={() =>
+        onConfirm(
+          METHODS.find((m) => m.value === method)?.value ?? 'transfer',
+          Number(received) || 0,
+        )
+      }
     >
       <Paper withBorder p="sm" radius="md">
         <Group justify="space-between">
@@ -95,11 +129,7 @@ export function ConfirmPaymentModal({
         <Text size="sm" fw={500} mb={4}>
           วิธีชำระ
         </Text>
-        <SegmentedControl
-          data={['โอน', 'เงินสด', 'ชำระผ่าน Platform']}
-          value={method}
-          onChange={setMethod}
-        />
+        <SegmentedControl data={METHODS} value={method} onChange={setMethod} />
       </div>
       <Select
         label="บัญชีที่รับเงิน"
@@ -121,7 +151,10 @@ export function ConfirmPaymentModal({
           thousandSeparator
           rightSection="บาท"
         />
-        <TextInput label="วันเวลาที่รับเงิน" defaultValue="13/11/2569 09:40" />
+        <TextInput
+          label="วันเวลาที่รับเงิน"
+          defaultValue={formatThaiDate(nowThai(), 'DD/MM/BBBB HH:mm')}
+        />
       </SimpleGrid>
       {diff !== 0 && (
         <Alert color="orange" variant="light">

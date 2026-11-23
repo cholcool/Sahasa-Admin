@@ -6,7 +6,13 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PrintPreviewModal } from '@/features/factory/components/FactoryModals';
-import { PRINT_ROWS, type PrintRow } from '@/features/factory/mock-data';
+import { markPrinted } from '@/features/mock/actions';
+import { isMarketplace } from '@/features/mock/catalog';
+import { carrierName, roundLabel, roundOrders } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
+import type { MockOrder } from '@/features/mock/types';
+import { CHANNEL_LABEL_TH } from '@/features/orders/labels';
+import { dayjs, todayIso } from '@/lib/dayjs';
 
 /** 04-03 Print pick lists and shipping labels (SRS 23, 24) */
 export const Route = createFileRoute('/_app/factory/print')({
@@ -22,9 +28,17 @@ function PrintedBadge({ count }: { count: number }) {
 }
 
 function PrintDocumentsPage() {
+  const db = useMockDb();
+  const today = todayIso();
   const [doc, setDoc] = useState('ใบจัดสินค้า');
-  const [selected, setSelected] = useState<PrintRow[]>(() => PRINT_ROWS.slice(0, 3));
+  const [round, setRound] = useState<string | null>(today);
+  const [carrier, setCarrier] = useState<string | null>(null);
+  const [selected, setSelected] = useState<MockOrder[]>([]);
   const [previewOpened, preview] = useDisclosure(false);
+
+  const rows = roundOrders(db, round ?? today)
+    .filter((o) => !carrier || o.carrierId === carrier)
+    .toSorted((a, b) => a.orderedAt.localeCompare(b.orderedAt));
 
   return (
     <Stack>
@@ -40,15 +54,27 @@ function PrintDocumentsPage() {
             />
             <Group gap="xs">
               <Select
-                data={['รอบ 13 พ.ย. 12:00', 'รอบ 14 พ.ย. 12:00']}
-                defaultValue="รอบ 13 พ.ย. 12:00"
-                w={180}
+                aria-label="รอบส่ง"
+                data={[-1, 0, 1, 2].map((i) => {
+                  const d = dayjs(today).add(i, 'day').format('YYYY-MM-DD');
+                  return { value: d, label: `รอบ ${roundLabel(d, today)} 12:00` };
+                })}
+                value={round}
+                onChange={(v) => {
+                  setRound(v);
+                  setSelected([]);
+                }}
+                allowDeselect={false}
+                w={200}
               />
               <Select
+                aria-label="ขนส่ง"
                 placeholder="ทุกขนส่ง"
                 clearable
-                data={['Inter Express', 'Nim Express', 'Fuze Express', 'รถตู้/รถทัวร์']}
-                w={160}
+                data={db.carriers.map((c) => ({ value: c.id, label: c.name }))}
+                value={carrier}
+                onChange={setCarrier}
+                w={170}
               />
             </Group>
           </Group>
@@ -60,15 +86,33 @@ function PrintDocumentsPage() {
             <Text size="sm">
               เลือก <b>{selected.length}</b> รายการ
             </Text>
-            <Button size="xs" disabled={selected.length === 0} onClick={preview.open}>
-              ดูตัวอย่างและพิมพ์
-            </Button>
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="default"
+                disabled={rows.length === 0}
+                onClick={() =>
+                  setSelected(
+                    rows.filter(
+                      (r) => (doc === 'ใบปะหน้า' ? r.printed.label : r.printed.pickList) === 0,
+                    ),
+                  )
+                }
+              >
+                เลือกที่ยังไม่พิมพ์
+              </Button>
+              <Button size="xs" disabled={selected.length === 0} onClick={preview.open}>
+                ดูตัวอย่างและพิมพ์
+              </Button>
+            </Group>
           </Group>
           <DataTable
             withTableBorder
             borderRadius="md"
+            minHeight={200}
             idAccessor="orderNumber"
-            records={PRINT_ROWS}
+            records={rows}
+            noRecordsText="ไม่มี Order ในรอบนี้"
             selectedRecords={selected}
             onSelectedRecordsChange={setSelected}
             columns={[
@@ -81,14 +125,14 @@ function PrintDocumentsPage() {
                   </Text>
                 ),
               },
-              { accessor: 'channel', title: 'ช่องทาง' },
-              { accessor: 'customer', title: 'ลูกค้า' },
-              { accessor: 'carrier', title: 'ขนส่ง' },
+              { accessor: 'channel', title: 'ช่องทาง', render: (r) => CHANNEL_LABEL_TH[r.channel] },
+              { accessor: 'customerName', title: 'ลูกค้า' },
+              { accessor: 'carrierId', title: 'ขนส่ง', render: (r) => carrierName(r.carrierId) },
               {
                 accessor: 'labelSource',
                 title: 'ที่มาใบปะหน้า',
                 render: (r) =>
-                  r.labelSource === 'platform' ? (
+                  isMarketplace(r.channel) ? (
                     <StatusBadge color="blue">Platform label</StatusBadge>
                   ) : (
                     <StatusBadge>ฟอร์มระบบ</StatusBadge>
@@ -97,12 +141,12 @@ function PrintDocumentsPage() {
               {
                 accessor: 'pickList',
                 title: 'ใบจัดสินค้า',
-                render: (r) => <PrintedBadge count={r.pickList} />,
+                render: (r) => <PrintedBadge count={r.printed.pickList} />,
               },
               {
                 accessor: 'label',
                 title: 'ใบปะหน้า',
-                render: (r) => <PrintedBadge count={r.label} />,
+                render: (r) => <PrintedBadge count={r.printed.label} />,
               },
             ]}
           />
@@ -112,8 +156,15 @@ function PrintDocumentsPage() {
         key={doc}
         opened={previewOpened}
         onClose={preview.close}
-        orderCount={selected.length}
+        orders={selected}
         defaultDoc={doc}
+        onPrinted={(printedDoc) => {
+          markPrinted(
+            selected.map((o) => o.orderNumber),
+            printedDoc === 'ใบปะหน้า' ? 'label' : 'pickList',
+          );
+          setSelected([]);
+        }}
       />
     </Stack>
   );

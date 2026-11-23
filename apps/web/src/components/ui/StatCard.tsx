@@ -1,5 +1,5 @@
 import { ColorSwatch, Group, Paper, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
-import { Link } from '@tanstack/react-router';
+import { Link, type LinkProps } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import classes from './ui.module.css';
 
@@ -10,12 +10,20 @@ export interface StatItem {
   color?: string;
   /** Route to open when clicked */
   to?: string;
+  /** Typed link (route + search) to open when clicked; wins over `to` */
+  link?: LinkProps;
   hint?: ReactNode;
 }
 
-export function StatCard({ label, value, color, to, hint }: StatItem) {
+export function StatCard({ label, value, color, to, link, hint }: StatItem) {
   const body = (
-    <Paper withBorder p="md" radius="lg" className={to ? classes.statLink : undefined} h="100%">
+    <Paper
+      withBorder
+      p="md"
+      radius="lg"
+      className={to || link ? classes.statLink : undefined}
+      h="100%"
+    >
       <Group gap={8} wrap="nowrap">
         {color && (
           <ColorSwatch color={`var(--mantine-color-${color}-6)`} size={10} withShadow={false} />
@@ -34,6 +42,13 @@ export function StatCard({ label, value, color, to, hint }: StatItem) {
       )}
     </Paper>
   );
+  if (link) {
+    return (
+      <Link {...link} className={classes.plainLink}>
+        {body}
+      </Link>
+    );
+  }
   if (!to) return body;
   return (
     <UnstyledButton component={Link} to={to} display="block">

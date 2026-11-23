@@ -3,6 +3,7 @@ import {
   Checkbox,
   Group,
   Paper,
+  ScrollArea,
   Select,
   SimpleGrid,
   Stack,
@@ -10,7 +11,6 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { DataTable } from 'mantine-datatable';
@@ -21,6 +21,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { CreditNoteModal } from '@/features/accounting/components/CreditNoteModal';
 import { InvoicePreviewModal } from '@/features/accounting/components/InvoicePreviewModal';
+import { issueDocuments, nextDocumentNo, nowThai } from '@/features/mock/actions';
+import { ordersAwaitingDocument } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
+import type { DocumentKind, MockDocument } from '@/features/mock/types';
+import { formatThaiDate } from '@/lib/dayjs';
 import { formatAmount, formatBaht } from '@/lib/format';
 
 /** 05-02 Tax invoices and receipts (SRS 30, 31, 33) */
@@ -28,78 +33,69 @@ export const Route = createFileRoute('/_app/accounting/documents')({
   component: AccountingDocumentsPage,
 });
 
-const DOCS = [
-  {
-    no: 'INV-2611-0042',
-    kind: 'inv',
-    type: 'ใบกำกับเต็มรูป',
-    order: 'ORD-000130',
-    customer: 'บจก. สยามฟู้ด',
-    billing: 'VAT',
-    total: 2850,
-    date: '12 พ.ย.',
-  },
-  {
-    no: 'INV-2611-0041',
-    kind: 'inv',
-    type: 'ใบกำกับอย่างย่อ',
-    order: 'ORD-000129',
-    customer: 'คุณนิด',
-    billing: 'VAT',
-    total: 570,
-    date: '12 พ.ย.',
-  },
-  {
-    no: 'RC-2611-0118',
-    kind: 'rc',
-    type: 'ใบเสร็จรับเงิน',
-    order: 'ORD-000141',
-    customer: 'ร้านเจ๊หมวย',
-    billing: 'NOVAT',
-    total: 1250,
-    date: '13 พ.ย.',
-  },
-  {
-    no: 'INV-2611-0038',
-    kind: 'inv',
-    type: 'ใบกำกับเต็มรูป',
-    order: 'ORD-000117',
-    customer: 'ครัวป้าศรี',
-    billing: 'VAT',
-    total: 950,
-    date: '10 พ.ย.',
-    creditNote: 'CN-2611-0003',
-  },
+const DOC_TYPES: { value: string; kind: DocumentKind }[] = [
+  { value: 'ใบกำกับภาษีเต็มรูป', kind: 'inv' },
+  { value: 'ใบกำกับภาษีอย่างย่อ', kind: 'inv' },
+  { value: 'ใบเสร็จรับเงิน', kind: 'rc' },
 ];
 
-const READY = [
-  { order: 'ORD-000139', customer: 'บจก. สยามฟู้ด', total: 570 },
-  { order: 'ORD-000135', customer: 'บจก. สยามฟู้ด', total: 1900 },
-  { order: 'ORD-000132', customer: 'คุณนิด', total: 380 },
-];
+const PAGE_SIZE = 25;
 
 function AccountingDocumentsPage() {
+  const db = useMockDb();
   const [tab, setTab] = useState<string | null>('all');
-  const [preview, setPreview] = useState<string | null>(null);
-  const [issueOpened, issue] = useDisclosure(false);
-  const [creditOpened, credit] = useDisclosure(false);
-  const [checked, setChecked] = useState<string[]>(['ORD-000139', 'ORD-000135']);
-  const rows = DOCS.filter((d) => tab === 'all' || d.kind === tab);
+  const [q, setQ] = useState('');
+  const [billing, setBilling] = useState<string | null>('all');
+  const months = [...new Set(db.documents.map((d) => d.issuedAt.slice(0, 7)))]
+    .toSorted()
+    .toReversed();
+  const [month, setMonth] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [preview, setPreview] = useState<MockDocument | null>(null);
+  const [issueOpened, setIssueOpened] = useState(false);
+  const [credit, setCredit] = useState<{ invoiceNo?: string } | null>(null);
+
+  const cn = new Map(db.creditNotes.filter((c) => !c.voided).map((c) => [c.invoiceNo, c.no]));
+  const query = q.trim().toLowerCase();
+  const filtered = db.documents
+    .filter(
+      (d) =>
+        (!month || d.issuedAt.startsWith(month)) &&
+        (billing === 'all' || d.billing === billing) &&
+        (!query ||
+          d.no.toLowerCase().includes(query) ||
+          d.orderNumber.toLowerCase().includes(query) ||
+          d.customerName.toLowerCase().includes(query)),
+    )
+    .toSorted((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+  const rows = filtered.filter((d) => tab === 'all' || d.kind === tab);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const reset = () => setPage(1);
 
   return (
     <Stack>
       <PageHeader
         title="เอกสารบัญชี"
         description="ใบกำกับภาษีและใบเสร็จ ออกตามประเภทการออกบิลของลูกค้า · รันเลขอัตโนมัติแยกตามประเภท"
-        actions={<Button onClick={issue.open}>ออกเอกสาร</Button>}
+        actions={<Button onClick={() => setIssueOpened(true)}>ออกเอกสาร</Button>}
       />
       <Paper withBorder radius="lg" p="md">
         <Stack>
-          <Tabs value={tab} onChange={setTab}>
+          <Tabs
+            value={tab}
+            onChange={(v) => {
+              setTab(v);
+              reset();
+            }}
+          >
             <Tabs.List>
-              <Tabs.Tab value="all">ทั้งหมด</Tabs.Tab>
-              <Tabs.Tab value="inv">ใบกำกับภาษี (32)</Tabs.Tab>
-              <Tabs.Tab value="rc">ใบเสร็จรับเงิน (58)</Tabs.Tab>
+              <Tabs.Tab value="all">ทั้งหมด ({filtered.length})</Tabs.Tab>
+              <Tabs.Tab value="inv">
+                ใบกำกับภาษี ({filtered.filter((d) => d.kind === 'inv').length})
+              </Tabs.Tab>
+              <Tabs.Tab value="rc">
+                ใบเสร็จรับเงิน ({filtered.filter((d) => d.kind === 'rc').length})
+              </Tabs.Tab>
             </Tabs.List>
           </Tabs>
           <Group grow preventGrowOverflow={false} wrap="wrap">
@@ -107,15 +103,50 @@ function AccountingDocumentsPage() {
               miw={240}
               leftSection={<IconSearch size={16} />}
               placeholder="ค้นหาเลขที่เอกสาร, Order, ลูกค้า"
+              value={q}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+                reset();
+              }}
             />
-            <Select data={['พ.ย. 2569', 'ต.ค. 2569']} defaultValue="พ.ย. 2569" />
-            <Select data={['VAT และ NOVAT', 'VAT', 'NOVAT']} defaultValue="VAT และ NOVAT" />
+            <Select
+              aria-label="เดือน"
+              placeholder="ทุกเดือน"
+              clearable
+              data={months.map((m) => ({ value: m, label: formatThaiDate(`${m}-01`, 'MMM BBBB') }))}
+              value={month}
+              onChange={(v) => {
+                setMonth(v);
+                reset();
+              }}
+            />
+            <Select
+              aria-label="ประเภทบิล"
+              data={[
+                { value: 'all', label: 'VAT และ NOVAT' },
+                { value: 'VAT', label: 'VAT' },
+                { value: 'NOVAT', label: 'NOVAT' },
+              ]}
+              value={billing}
+              onChange={(v) => {
+                setBilling(v ?? 'all');
+                reset();
+              }}
+              allowDeselect={false}
+            />
           </Group>
           <DataTable
             withTableBorder
             borderRadius="md"
+            minHeight={200}
             idAccessor="no"
-            records={rows}
+            records={pageRows}
+            totalRecords={rows.length}
+            recordsPerPage={PAGE_SIZE}
+            page={page}
+            onPageChange={setPage}
+            paginationText={({ from, to, totalRecords }) => `${from}–${to} จาก ${totalRecords}`}
+            noRecordsText="ไม่พบเอกสาร"
             columns={[
               {
                 accessor: 'no',
@@ -127,8 +158,8 @@ function AccountingDocumentsPage() {
                 ),
               },
               { accessor: 'type', title: 'ประเภท' },
-              { accessor: 'order', title: 'อ้างอิง Order' },
-              { accessor: 'customer', title: 'ลูกค้า' },
+              { accessor: 'orderNumber', title: 'อ้างอิง Order' },
+              { accessor: 'customerName', title: 'ลูกค้า' },
               {
                 accessor: 'billing',
                 title: 'บิล',
@@ -144,13 +175,17 @@ function AccountingDocumentsPage() {
                 textAlign: 'right',
                 render: (r) => formatAmount(r.total),
               },
-              { accessor: 'date', title: 'วันที่' },
+              {
+                accessor: 'issuedAt',
+                title: 'วันที่',
+                render: (r) => formatThaiDate(r.issuedAt, 'D MMM'),
+              },
               {
                 accessor: 'status',
                 title: 'สถานะ',
                 render: (r) =>
-                  r.creditNote ? (
-                    <StatusBadge color="brand">มีใบลดหนี้ {r.creditNote}</StatusBadge>
+                  cn.has(r.no) ? (
+                    <StatusBadge color="brand">มีใบลดหนี้ {cn.get(r.no)}</StatusBadge>
                   ) : (
                     <StatusBadge color="green">ออกแล้ว</StatusBadge>
                   ),
@@ -160,7 +195,7 @@ function AccountingDocumentsPage() {
                 title: '',
                 textAlign: 'right',
                 render: (r) => (
-                  <Button size="compact-xs" variant="default" onClick={() => setPreview(r.no)}>
+                  <Button size="compact-xs" variant="default" onClick={() => setPreview(r)}>
                     ดูตัวอย่าง
                   </Button>
                 ),
@@ -173,39 +208,101 @@ function AccountingDocumentsPage() {
         </Stack>
       </Paper>
 
-      <ConfirmModal
-        opened={issueOpened}
-        onClose={issue.close}
-        title="ออกเอกสาร"
-        confirmLabel={`ออกเอกสาร ${checked.length} ฉบับ`}
-        doneMessage={`ออกเอกสาร ${checked.length} ฉบับแล้ว`}
-        confirmDisabled={checked.length === 0}
-      >
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Select
-            label="ประเภทเอกสาร"
-            data={['ใบกำกับภาษีเต็มรูป', 'ใบกำกับภาษีอย่างย่อ', 'ใบเสร็จรับเงิน']}
-            defaultValue="ใบกำกับภาษีเต็มรูป"
-            description="เต็มรูป/อย่างย่อ รอยืนยัน (Q17)"
-          />
-          <TextInput label="วันที่เอกสาร" defaultValue="13/11/2569" />
-        </SimpleGrid>
+      {issueOpened && <IssueModal onClose={() => setIssueOpened(false)} />}
+      <InvoicePreviewModal
+        opened={preview !== null}
+        onClose={() => setPreview(null)}
+        doc={preview}
+        onCancelDocument={() => setCredit({ invoiceNo: preview?.no })}
+      />
+      {credit && (
+        <CreditNoteModal
+          opened
+          onClose={() => setCredit(null)}
+          initialInvoiceNo={credit.invoiceNo}
+        />
+      )}
+    </Stack>
+  );
+}
+
+function IssueModal({ onClose }: { onClose: () => void }) {
+  const db = useMockDb();
+  const [type, setType] = useState<string>('ใบกำกับภาษีเต็มรูป');
+  const kind = DOC_TYPES.find((t) => t.value === type)?.kind ?? 'inv';
+  // VAT customers get tax invoices, NOVAT customers get receipts
+  const ready = ordersAwaitingDocument(db).filter((o) =>
+    kind === 'inv' ? o.billing === 'VAT' : o.billing === 'NOVAT',
+  );
+  const [checked, setChecked] = useState<string[]>([]);
+  const first = nextDocumentNo(db, kind === 'inv' ? 'INV' : 'RC', nowThai());
+
+  return (
+    <ConfirmModal
+      opened
+      onClose={onClose}
+      title="ออกเอกสาร"
+      confirmLabel={`ออกเอกสาร ${checked.length} ฉบับ`}
+      doneMessage={`ออกเอกสาร ${checked.length} ฉบับแล้ว`}
+      confirmDisabled={checked.length === 0}
+      onConfirm={() =>
+        issueDocuments(
+          checked,
+          kind,
+          type === 'ใบกำกับภาษีเต็มรูป'
+            ? 'ใบกำกับเต็มรูป'
+            : type === 'ใบกำกับภาษีอย่างย่อ'
+              ? 'ใบกำกับอย่างย่อ'
+              : 'ใบเสร็จรับเงิน',
+        )
+      }
+    >
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <Select
+          label="ประเภทเอกสาร"
+          data={DOC_TYPES.map((t) => t.value)}
+          value={type}
+          onChange={(v) => {
+            if (v) setType(v);
+            setChecked([]);
+          }}
+          allowDeselect={false}
+          description="เต็มรูป/อย่างย่อ รอยืนยัน (Q17)"
+        />
+        <TextInput label="วันที่เอกสาร" value={formatThaiDate(nowThai(), 'DD/MM/BBBB')} readOnly />
+      </SimpleGrid>
+      <Group justify="space-between">
         <Text size="sm" fw={500}>
-          Order ที่พร้อมออกเอกสาร
+          Order ที่พร้อมออกเอกสาร ({ready.length})
         </Text>
+        <Button
+          size="compact-xs"
+          variant="subtle"
+          disabled={ready.length === 0}
+          onClick={() => setChecked(ready.map((o) => o.orderNumber))}
+        >
+          เลือกทั้งหมด
+        </Button>
+      </Group>
+      {ready.length === 0 && (
+        <Text size="sm" c="dimmed">
+          ไม่มี Order ที่รอออกเอกสารประเภทนี้
+        </Text>
+      )}
+      <ScrollArea.Autosize mah={320}>
         <Checkbox.Group value={checked} onChange={setChecked}>
           <Stack gap="xs">
-            {READY.map((o) => (
-              <Paper key={o.order} withBorder p="sm" radius="md">
+            {ready.map((o) => (
+              <Paper key={o.orderNumber} withBorder p="sm" radius="md">
                 <Group justify="space-between">
                   <Group gap="sm">
-                    <Checkbox value={o.order} aria-label={o.order} />
+                    <Checkbox value={o.orderNumber} aria-label={o.orderNumber} />
                     <div>
                       <Text fw={600} size="sm">
-                        {o.order}
+                        {o.orderNumber}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {o.customer} · VAT
+                        {o.customerName} · {o.billing}
                       </Text>
                     </div>
                   </Group>
@@ -215,22 +312,15 @@ function AccountingDocumentsPage() {
             ))}
           </Stack>
         </Checkbox.Group>
-        <Paper withBorder p="sm" radius="md">
-          <KeyValue label="เลขที่ถัดไป">
-            <Text span ff="monospace" size="sm">
-              INV-2611-0043{checked.length > 1 && `, 00${43 + checked.length - 1}`}
-            </Text>
-          </KeyValue>
-        </Paper>
-      </ConfirmModal>
-
-      <InvoicePreviewModal
-        opened={preview !== null}
-        onClose={() => setPreview(null)}
-        docNo={preview ?? ''}
-        onCancelDocument={credit.open}
-      />
-      <CreditNoteModal opened={creditOpened} onClose={credit.close} />
-    </Stack>
+      </ScrollArea.Autosize>
+      <Paper withBorder p="sm" radius="md">
+        <KeyValue label="เลขที่ถัดไป">
+          <Text span ff="monospace" size="sm">
+            {first}
+            {checked.length > 1 && ` … (${checked.length} ฉบับ)`}
+          </Text>
+        </KeyValue>
+      </Paper>
+    </ConfirmModal>
   );
 }

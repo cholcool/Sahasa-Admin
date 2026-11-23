@@ -1,18 +1,21 @@
-import { Button, Divider, Grid, Group, Stack, Table, Text, Timeline } from '@mantine/core';
+import { Alert, Button, Divider, Grid, Group, Stack, Table, Text, Timeline } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ButtonLink } from '@/components/ui/links';
+import { KeyValue } from '@/components/ui/KeyValue';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { KeyValue } from '@/components/ui/KeyValue';
+import { cancelOrder, confirmOrders, confirmPayment } from '@/features/mock/actions';
+import { carrierName, documentFor, findOrder, roundText } from '@/features/mock/selectors';
+import { useMockDb } from '@/features/mock/store';
 import { CancelOrderModal, ConfirmPaymentModal } from '@/features/orders/components/OrderModals';
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
 import { OrderStatusStepper } from '@/features/orders/components/OrderStatusStepper';
 import { SlipThumbnails } from '@/features/orders/components/SlipThumbnails';
 import { CHANNEL_LABEL_TH, DELIVERY_STATE, PAYMENT_STATE } from '@/features/orders/labels';
-import { MOCK_ORDER_DETAIL } from '@/features/orders/mock-data';
 import { lineTotal, orderTotals } from '@/features/orders/order-math';
+import { formatThaiDate } from '@/lib/dayjs';
 import { formatBaht, formatNumber } from '@/lib/format';
 import { notifyDone } from '@/lib/notify';
 
@@ -21,38 +24,81 @@ export const Route = createFileRoute('/_app/orders/$orderId/')({
   component: OrderDetailPage,
 });
 
+const PAYMENT_METHOD_TH = { platform: 'ชำระผ่าน Platform', transfer: 'โอน', cash: 'เงินสด' };
+
 function OrderDetailPage() {
   const { orderId } = Route.useParams();
-  // TODO: load by orderId from the API; mock always shows ORD-000141's content
-  const order = { ...MOCK_ORDER_DETAIL, orderNumber: orderId };
-  const totals = orderTotals(order.lines, order.shippingFee);
+  const db = useMockDb();
+  const order = findOrder(db, orderId);
   const [cancelOpened, cancel] = useDisclosure(false);
   const [payOpened, pay] = useDisclosure(false);
+
+  if (!order) {
+    return (
+      <Stack>
+        <PageHeader title={orderId} />
+        <Alert color="orange" variant="light">
+          ไม่พบ Order นี้ในข้อมูล Mockup ชุดปัจจุบัน (อาจสร้างข้อมูลใหม่หรือล้างข้อมูลไปแล้ว)
+        </Alert>
+        <ButtonLink variant="default" to="/orders" w="fit-content">
+          กลับไปรายการ Order
+        </ButtonLink>
+      </Stack>
+    );
+  }
+
+  const totals = orderTotals(order.lines, order.shippingFee);
+  const doc = documentFor(db, order.orderNumber);
+  const open = !['cancelled', 'delivered', 'shipped', 'partially_shipped'].includes(order.status);
+  const editable = ['pending_review', 'confirmed', 'factory_accepted'].includes(order.status);
+  const history = [...order.history].toReversed();
+  const short = order.lines.some((l) => l.shippedQty !== undefined && l.shippedQty < l.qty);
 
   return (
     <Stack>
       <PageHeader
         title={order.orderNumber}
-        description={`สร้างโดย ${order.createdBy} · ${order.createdAt}`}
+        description={`สร้างโดย ${order.createdBy} · ${formatThaiDate(order.orderedAt, 'D MMM BBBB HH:mm')}`}
         actions={
           <>
-            <Button variant="default" onClick={cancel.open}>
-              ยกเลิก Order
-            </Button>
-            <ButtonLink variant="default" to="/orders/$orderId/edit" params={{ orderId }}>
-              แก้ไข
-            </ButtonLink>
-            <Button onClick={() => notifyDone(`ยืนยัน ${order.orderNumber} แล้ว · เข้าคิวโรงงาน`)}>
-              ยืนยัน Order
-            </Button>
+            {open && (
+              <Button variant="default" onClick={cancel.open}>
+                ยกเลิก Order
+              </Button>
+            )}
+            {editable && (
+              <ButtonLink variant="default" to="/orders/$orderId/edit" params={{ orderId }}>
+                แก้ไข
+              </ButtonLink>
+            )}
+            {order.status === 'pending_review' && (
+              <Button
+                onClick={() => {
+                  confirmOrders([order.orderNumber]);
+                  notifyDone(`ยืนยัน ${order.orderNumber} แล้ว · เข้าคิวโรงงาน`);
+                }}
+              >
+                ยืนยัน Order
+              </Button>
+            )}
           </>
         }
       />
       <Group gap="xs" mt={-8}>
         <OrderStatusBadge status={order.status} />
         <StatusBadge>{CHANNEL_LABEL_TH[order.channel]}</StatusBadge>
+        {order.platformOrderNo && <StatusBadge color="gray">{order.platformOrderNo}</StatusBadge>}
+        {order.insertedAfterCutoff && <StatusBadge color="orange">แทรกหลังตัดรอบ</StatusBadge>}
+        {order.editedAfterAccept && <StatusBadge color="brand">แก้ไขหลังโรงงานรับ</StatusBadge>}
       </Group>
-      <OrderStatusStepper status={order.status} />
+      {order.status === 'cancelled' ? (
+        <Alert color="brand" variant="light">
+          ยกเลิกแล้ว · {order.cancelReason}
+          {order.cancelledAt && ` · ${formatThaiDate(order.cancelledAt, 'D MMM BBBB HH:mm')}`}
+        </Alert>
+      ) : (
+        <OrderStatusStepper status={order.status} />
+      )}
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 8 }}>
@@ -64,6 +110,7 @@ function OrderDetailPage() {
                     <Table.Tr>
                       <Table.Th>สินค้า</Table.Th>
                       <Table.Th ta="right">จำนวน</Table.Th>
+                      {short && <Table.Th ta="right">ส่งจริง</Table.Th>}
                       <Table.Th ta="right">ราคา</Table.Th>
                       <Table.Th ta="right">รวม (฿)</Table.Th>
                     </Table.Tr>
@@ -73,6 +120,18 @@ function OrderDetailPage() {
                       <Table.Tr key={l.productId}>
                         <Table.Td>{l.name}</Table.Td>
                         <Table.Td ta="right">{l.qty}</Table.Td>
+                        {short && (
+                          <Table.Td
+                            ta="right"
+                            c={
+                              l.shippedQty !== undefined && l.shippedQty < l.qty
+                                ? 'orange'
+                                : undefined
+                            }
+                          >
+                            {l.shippedQty ?? l.qty}
+                          </Table.Td>
+                        )}
                         <Table.Td ta="right">{formatNumber(l.price)}</Table.Td>
                         <Table.Td ta="right">{formatNumber(lineTotal(l))}</Table.Td>
                       </Table.Tr>
@@ -99,10 +158,10 @@ function OrderDetailPage() {
               }
             >
               <Timeline bulletSize={12} lineWidth={2}>
-                {order.history.map((h) => (
+                {history.map((h) => (
                   <Timeline.Item key={h.at + h.text}>
                     <Text size="xs" c="dimmed">
-                      {h.at}
+                      {formatThaiDate(h.at, 'D MMM HH:mm')} · {h.by}
                     </Text>
                     <Text size="sm">{h.text}</Text>
                   </Timeline.Item>
@@ -117,26 +176,29 @@ function OrderDetailPage() {
             <SectionCard title="ลูกค้าและที่อยู่จัดส่ง">
               <Stack gap={6}>
                 <div>
-                  <Text fw={600}>{order.customer.name}</Text>
+                  <Text fw={600}>{order.customerName}</Text>
                   <Text size="xs" c="dimmed">
-                    {order.customer.phone}
+                    {order.phone}
                   </Text>
                 </div>
                 <Text size="sm">{order.address}</Text>
                 <KeyValue label="ประเภทการออกบิล">{order.billing}</KeyValue>
+                <KeyValue label="เอกสารบัญชี">{doc ? doc.no : '—'}</KeyValue>
               </Stack>
             </SectionCard>
 
             <SectionCard title="การชำระเงิน">
               <Stack gap="sm">
-                <KeyValue label="วิธีชำระ">{order.paymentMethod}</KeyValue>
+                <KeyValue label="วิธีชำระ">{PAYMENT_METHOD_TH[order.paymentMethod]}</KeyValue>
                 <KeyValue label="สถานะ">
                   <StatusBadge color={PAYMENT_STATE[order.payment].color}>
                     {PAYMENT_STATE[order.payment].label}
                   </StatusBadge>
                 </KeyValue>
-                <SlipThumbnails count={2} />
-                {order.payment === 'awaiting' && (
+                {order.paymentMethod === 'transfer' && (
+                  <SlipThumbnails count={order.payment === 'paid' ? 1 : 0} />
+                )}
+                {order.payment === 'awaiting' && order.status !== 'cancelled' && (
                   <Button color="gold" fullWidth onClick={pay.open}>
                     ยืนยันการรับเงิน
                   </Button>
@@ -146,8 +208,8 @@ function OrderDetailPage() {
 
             <SectionCard title="การจัดส่ง">
               <Stack gap={6}>
-                <KeyValue label="ขนส่ง">{order.carrier}</KeyValue>
-                <KeyValue label="รอบการส่ง">{order.round}</KeyValue>
+                <KeyValue label="ขนส่ง">{carrierName(order.carrierId, true)}</KeyValue>
+                <KeyValue label="รอบการส่ง">{roundText(order.roundDate)}</KeyValue>
                 <KeyValue label="เลข Tracking">{order.tracking ?? '—'}</KeyValue>
                 <KeyValue label="สถานะการจัดส่ง">
                   <StatusBadge color={DELIVERY_STATE[order.delivery].color}>
@@ -161,15 +223,18 @@ function OrderDetailPage() {
       </Grid>
 
       <CancelOrderModal
+        key={`c-${order.orderNumber}`}
         opened={cancelOpened}
         onClose={cancel.close}
-        orderNumber={order.orderNumber}
+        order={order}
+        onConfirm={(reason, note) => cancelOrder(order.orderNumber, reason, note)}
       />
       <ConfirmPaymentModal
+        key={`p-${order.orderNumber}`}
         opened={payOpened}
         onClose={pay.close}
-        orderNumber={order.orderNumber}
-        amountDue={totals.total}
+        order={order}
+        onConfirm={(method, amount) => confirmPayment(order.orderNumber, method, amount)}
       />
     </Stack>
   );

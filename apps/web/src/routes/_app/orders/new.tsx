@@ -13,24 +13,28 @@ import {
   Stack,
   Text,
   Textarea,
-  TextInput,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconSearch, IconUpload } from '@tabler/icons-react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
+import { createOrder } from '@/features/mock/actions';
+import { shippingFeeFor } from '@/features/mock/catalog';
+import { productOptions, roundChoices, roundText } from '@/features/mock/selectors';
+import { getMockDb, useMockDb } from '@/features/mock/store';
+import type { Billing, CarrierId } from '@/features/mock/types';
 import {
   AddressPickerModal,
   CustomerPickerModal,
   NewCustomerModal,
 } from '@/features/orders/components/CustomerModals';
 import { LineItemsEditor, type EditableLine } from '@/features/orders/components/LineItemsEditor';
-import { CARRIERS, CHANNEL_LABEL_TH, MANUAL_CHANNELS } from '@/features/orders/labels';
-import { MOCK_PRODUCTS, ROUNDS } from '@/features/orders/mock-data';
+import { CHANNEL_LABEL_TH, MANUAL_CHANNELS } from '@/features/orders/labels';
 import { orderTotals } from '@/features/orders/order-math';
+import { dayjs, formatThaiDate, todayIso } from '@/lib/dayjs';
 import { formatBaht } from '@/lib/format';
 import { notifyDone } from '@/lib/notify';
 
@@ -39,35 +43,95 @@ export const Route = createFileRoute('/_app/orders/new')({
   component: CreateOrderPage,
 });
 
-// TODO: shipping fee rule for manual channels is pending (Q2–Q5)
-const SHIPPING_FEE = 50;
-
-const INITIAL_LINES: EditableLine[] = MOCK_PRODUCTS.map((p, i) => ({
-  productId: p.id,
-  name: p.name,
-  unit: p.unit,
-  basePrice: p.price,
-  qty: i === 0 ? 5 : 2,
-  price: p.price,
-}));
-
-// TODO: call the create-order API
-const save = () => notifyDone('สร้าง ORD-000153 แล้ว · สถานะรอตรวจสอบ');
-
 type ManualChannel = (typeof MANUAL_CHANNELS)[number];
 
+const CUTOFF_HOUR = 12;
+
 function CreateOrderPage() {
+  const db = useMockDb();
+  const navigate = useNavigate();
+  const today = todayIso();
+  const now = dayjs().tz('Asia/Bangkok');
+  const pastCutoff = now.hour() >= CUTOFF_HOUR;
+  const nextRound = pastCutoff ? dayjs(today).add(1, 'day').format('YYYY-MM-DD') : today;
+
   const [channel, setChannel] = useState<ManualChannel>('line');
-  const [billing, setBilling] = useState('NOVAT');
+  const customers = db.customers.filter((c) => c.regular);
+  const [customerId, setCustomerId] = useState<string | undefined>(
+    () => customers.find((c) => c.channel === 'line')?.id,
+  );
+  const customer = db.customers.find((c) => c.id === customerId);
+  const [addressId, setAddressId] = useState<string | undefined>();
+  const address =
+    customer?.addresses.find((a) => a.id === addressId) ??
+    customer?.addresses.find((a) => a.isDefault);
+  const [billing, setBilling] = useState<Billing>(customer?.billing ?? 'NOVAT');
   const [payment, setPayment] = useState('โอน');
-  const [carrier, setCarrier] = useState<string | null>(CARRIERS[1] ?? null);
-  const [round, setRound] = useState<string | null>(ROUNDS[1] ?? null);
-  const [lines, setLines] = useState(INITIAL_LINES);
+  const [slips, setSlips] = useState<File[]>([]);
+  const [carrier, setCarrier] = useState<CarrierId>('nim');
+  const [round, setRound] = useState<string>(nextRound);
+  const [inserted, setInserted] = useState(false);
+  const products = productOptions(db.products, channel);
+  const [lines, setLines] = useState<EditableLine[]>(() =>
+    products.slice(0, 1).map((p) => ({
+      productId: p.id,
+      name: p.name,
+      unit: p.unit,
+      basePrice: p.price,
+      qty: 1,
+      price: p.price,
+    })),
+  );
   const [cutoffOpened, cutoff] = useDisclosure(false);
   const [custOpened, cust] = useDisclosure(false);
   const [newCustOpened, newCust] = useDisclosure(false);
   const [addrOpened, addr] = useDisclosure(false);
-  const totals = orderTotals(lines, SHIPPING_FEE);
+  const shippingFee = shippingFeeFor(channel, carrier);
+  const totals = orderTotals(lines, shippingFee);
+  const rounds = roundChoices(db, today, 0, 5).filter(
+    (d) => d >= nextRound || (inserted && d === today),
+  );
+
+  const selectCustomer = (id: string) => {
+    // A just-created customer is already saved but may not be in this render's snapshot yet
+    const c = getMockDb().customers.find((x) => x.id === id);
+    setCustomerId(id);
+    setAddressId(undefined);
+    if (c) setBilling(c.billing);
+  };
+
+  const changeChannel = (next: ManualChannel) => {
+    setChannel(next);
+    // Re-price lines for the new channel; keep prices the user typed by hand
+    const priced = productOptions(db.products, next);
+    setLines((ls) =>
+      ls.map((l) => {
+        const p = priced.find((x) => x.id === l.productId);
+        if (!p) return l;
+        return { ...l, basePrice: p.price, price: l.price === l.basePrice ? p.price : l.price };
+      }),
+    );
+    if (next === 'storefront') setCarrier('store');
+  };
+
+  const canSave = Boolean(customer) && lines.some((l) => l.qty > 0);
+  const save = () => {
+    if (!customer) return;
+    const orderNumber = createOrder({
+      channel,
+      customerId: customer.id,
+      addressId: address?.id,
+      billing,
+      lines: lines.map(({ productId, name, qty, price }) => ({ productId, name, qty, price })),
+      carrierId: carrier,
+      roundDate: round,
+      paymentMethod: payment === 'เงินสด' ? 'cash' : 'transfer',
+      paid: payment === 'เงินสด' || slips.length > 0,
+      insertedAfterCutoff: inserted,
+    });
+    notifyDone(`สร้าง ${orderNumber} แล้ว · สถานะรอตรวจสอบ`);
+    void navigate({ to: '/orders/$orderId', params: { orderId: orderNumber } });
+  };
 
   return (
     <Stack>
@@ -80,18 +144,31 @@ function CreateOrderPage() {
             <Button variant="default" component={Link} to="/orders">
               ยกเลิก
             </Button>
-            <Button onClick={save}>บันทึก Order</Button>
+            <Button onClick={save} disabled={!canSave}>
+              บันทึก Order
+            </Button>
           </>
         }
       />
-      <Alert color="orange" variant="light">
-        <Group justify="space-between">
-          <Text size="sm">ตอนนี้ 12:20 น. เลยเวลาตัดรอบวันนี้แล้ว · Order จะเข้ารอบ 14 พ.ย. 12:00</Text>
-          <Button size="xs" variant="default" onClick={cutoff.open}>
-            เพิ่มเข้ารอบวันนี้
-          </Button>
-        </Group>
-      </Alert>
+      {pastCutoff && !inserted ? (
+        <Alert color="orange" variant="light">
+          <Group justify="space-between">
+            <Text size="sm">
+              ตอนนี้ {now.format('HH:mm')} น. เลยเวลาตัดรอบวันนี้แล้ว · Order จะเข้ารอบ{' '}
+              {formatThaiDate(nextRound, 'D MMM')} 12:00
+            </Text>
+            <Button size="xs" variant="default" onClick={cutoff.open}>
+              เพิ่มเข้ารอบวันนี้
+            </Button>
+          </Group>
+        </Alert>
+      ) : (
+        <Alert color={inserted ? 'orange' : 'blue'} variant="light">
+          {inserted
+            ? `แทรกเข้ารอบวันนี้ (${formatThaiDate(today, 'D MMM')}) หลังตัดรอบ · ระบบจะแจ้งเตือนโรงงาน`
+            : `ตัดรอบวันนี้ 12:00 น. · Order ที่บันทึกตอนนี้เข้ารอบ ${formatThaiDate(today, 'D MMM')}`}
+        </Alert>
+      )}
 
       <Grid>
         <Grid.Col span={{ base: 12, md: 8 }}>
@@ -99,7 +176,7 @@ function CreateOrderPage() {
             <SectionCard title="ช่องทางการขาย *">
               <SegmentedControl
                 value={channel}
-                onChange={(v) => setChannel(MANUAL_CHANNELS.find((c) => c === v) ?? 'line')}
+                onChange={(v) => changeChannel(MANUAL_CHANNELS.find((c) => c === v) ?? 'line')}
                 data={MANUAL_CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL_TH[c] }))}
               />
               <Text size="xs" c="dimmed" mt={6}>
@@ -110,55 +187,68 @@ function CreateOrderPage() {
             <SectionCard title="ลูกค้า">
               <Stack>
                 <Group>
-                  <TextInput
-                    flex={1}
+                  <Button
+                    variant="default"
                     leftSection={<IconSearch size={16} />}
-                    placeholder="ค้นหาเบอร์โทรหรือชื่อ"
-                  />
-                  <Button variant="default" onClick={cust.open}>
-                    เลือกลูกค้า
+                    onClick={cust.open}
+                  >
+                    ค้นหา / เลือกลูกค้า
                   </Button>
                   <Button variant="default" onClick={newCust.open}>
                     ลูกค้าใหม่
                   </Button>
                 </Group>
-                <Paper withBorder p="sm" radius="md">
-                  <Group justify="space-between">
-                    <div>
-                      <Text fw={600}>ร้านเจ๊หมวย</Text>
-                      <Text size="xs" c="dimmed">
-                        081-234-5678 · ลูกค้า Line
-                      </Text>
-                    </div>
-                    <Button size="xs" variant="subtle" onClick={cust.open}>
-                      เปลี่ยน
-                    </Button>
-                  </Group>
-                </Paper>
-                <div>
-                  <Text size="sm" fw={500} mb={4}>
-                    ที่อยู่จัดส่ง
-                  </Text>
+                {customer ? (
                   <Paper withBorder p="sm" radius="md">
-                    <Group justify="space-between" wrap="nowrap">
-                      <Text size="sm">99/9 ถ.ตัวอย่าง ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110</Text>
-                      <Button size="xs" variant="subtle" onClick={addr.open}>
+                    <Group justify="space-between">
+                      <div>
+                        <Text fw={600}>{customer.name}</Text>
+                        <Text size="xs" c="dimmed">
+                          {customer.phone} · ลูกค้า {CHANNEL_LABEL_TH[customer.channel]}
+                        </Text>
+                      </div>
+                      <Button size="xs" variant="subtle" onClick={cust.open}>
                         เปลี่ยน
                       </Button>
                     </Group>
                   </Paper>
-                </div>
+                ) : (
+                  <Text c="dimmed" size="sm">
+                    ยังไม่ได้เลือกลูกค้า
+                  </Text>
+                )}
+                {address && (
+                  <div>
+                    <Text size="sm" fw={500} mb={4}>
+                      ที่อยู่จัดส่ง
+                    </Text>
+                    <Paper withBorder p="sm" radius="md">
+                      <Group justify="space-between" wrap="nowrap">
+                        <Text size="sm">
+                          {address.name} · {address.text}
+                        </Text>
+                        <Button size="xs" variant="subtle" onClick={addr.open}>
+                          เปลี่ยน
+                        </Button>
+                      </Group>
+                    </Paper>
+                  </div>
+                )}
                 <div>
                   <Text size="sm" fw={500} mb={4}>
                     ประเภทการออกบิล
                   </Text>
-                  <SegmentedControl data={['NOVAT', 'VAT']} value={billing} onChange={setBilling} />
+                  <SegmentedControl
+                    data={['NOVAT', 'VAT']}
+                    value={billing}
+                    onChange={(v) => setBilling(v === 'VAT' ? 'VAT' : 'NOVAT')}
+                  />
                 </div>
               </Stack>
             </SectionCard>
 
             <SectionCard title="สินค้า">
-              <LineItemsEditor lines={lines} onChange={setLines} products={MOCK_PRODUCTS} />
+              <LineItemsEditor lines={lines} onChange={setLines} products={products} />
               <Text size="xs" c="dimmed" mt="xs">
                 แก้จำนวนและราคาต่อหน่วยได้ทุกรายการ · กรอบสีแดง = ราคาต่างจากราคาตั้ง ·
                 วิธีคิดราคาและค่าส่งของช่องทาง Manual รอยืนยัน (Q2–Q5)
@@ -167,12 +257,20 @@ function CreateOrderPage() {
 
             <SectionCard title="การจัดส่ง">
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <Select label="ขนส่ง" data={CARRIERS} value={carrier} onChange={setCarrier} />
+                <Select
+                  label="ขนส่ง"
+                  data={db.carriers.map((c) => ({ value: c.id, label: c.fullName }))}
+                  value={carrier}
+                  onChange={(v) => {
+                    const next = db.carriers.find((c) => c.id === v);
+                    if (next) setCarrier(next.id);
+                  }}
+                />
                 <Select
                   label="รอบการส่ง"
-                  data={ROUNDS.slice(1)}
+                  data={rounds.map((d) => ({ value: d, label: roundText(d) }))}
                   value={round}
-                  onChange={setRound}
+                  onChange={(v) => v && setRound(v)}
                   description="เลือกวันอื่นได้ = Order ล่วงหน้า"
                 />
               </SimpleGrid>
@@ -191,10 +289,12 @@ function CreateOrderPage() {
                     multiple
                     clearable
                     label="แนบสลิป (ได้หลายไฟล์)"
-                    description="JPG, PNG, PDF"
+                    description="ไม่แนบสลิป = รอยืนยันรับเงิน · Mockup ไม่อัปโหลดไฟล์จริง"
                     placeholder="เลือกไฟล์สลิป"
                     accept="image/png,image/jpeg,application/pdf"
                     leftSection={<IconUpload size={16} />}
+                    value={slips}
+                    onChange={setSlips}
                   />
                 )}
               </Stack>
@@ -209,14 +309,14 @@ function CreateOrderPage() {
                 สรุป Order
               </Text>
               <SummaryRow label="ช่องทาง" value={CHANNEL_LABEL_TH[channel]} />
-              <SummaryRow label="ลูกค้า" value="ร้านเจ๊หมวย" />
-              <SummaryRow label="รอบส่ง" value={round ?? '-'} />
+              <SummaryRow label="ลูกค้า" value={customer?.name ?? '-'} />
+              <SummaryRow label="รอบส่ง" value={roundText(round)} />
               <Divider />
               <SummaryRow label="ยอดสินค้า" value={formatBaht(totals.items)} />
               <SummaryRow label="ค่าส่ง" value={formatBaht(totals.shipping)} />
               <Divider />
               <SummaryRow label="ยอดรวม" value={<b>{formatBaht(totals.total)}</b>} />
-              <Button fullWidth mt="sm" onClick={save}>
+              <Button fullWidth mt="sm" onClick={save} disabled={!canSave}>
                 บันทึก Order
               </Button>
             </Stack>
@@ -224,10 +324,41 @@ function CreateOrderPage() {
         </Grid.Col>
       </Grid>
 
-      <CutoffModal opened={cutoffOpened} onClose={cutoff.close} />
-      <CustomerPickerModal opened={custOpened} onClose={cust.close} onCreateNew={newCust.open} />
-      <NewCustomerModal opened={newCustOpened} onClose={newCust.close} />
-      <AddressPickerModal opened={addrOpened} onClose={addr.close} />
+      <CutoffModal
+        opened={cutoffOpened}
+        onClose={cutoff.close}
+        today={today}
+        nextRound={nextRound}
+        onChoose={(choice) => {
+          setInserted(choice === 'today');
+          setRound(choice === 'today' ? today : nextRound);
+        }}
+      />
+      <CustomerPickerModal
+        key={`pick-${custOpened}`}
+        opened={custOpened}
+        onClose={cust.close}
+        customers={customers}
+        initialId={customerId}
+        onSelect={selectCustomer}
+      />
+      <NewCustomerModal
+        key={`new-${newCustOpened}`}
+        opened={newCustOpened}
+        onClose={newCust.close}
+        onCreated={selectCustomer}
+      />
+      {customer && (
+        <AddressPickerModal
+          key={`addr-${customer.id}-${addrOpened}`}
+          opened={addrOpened}
+          onClose={addr.close}
+          customerName={customer.name}
+          addresses={customer.addresses}
+          initialId={address?.id}
+          onSelect={setAddressId}
+        />
+      )}
     </Stack>
   );
 }
@@ -244,26 +375,41 @@ function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /** Modal · เพิ่มหลังตัดรอบ */
-function CutoffModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const [choice, setChoice] = useState('today');
+function CutoffModal({
+  opened,
+  onClose,
+  today,
+  nextRound,
+  onChoose,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  today: string;
+  nextRound: string;
+  onChoose: (choice: 'today' | 'next') => void;
+}) {
+  const [choice, setChoice] = useState<'today' | 'next'>('today');
+  const [reason, setReason] = useState('');
   return (
     <ConfirmModal
       opened={opened}
       onClose={onClose}
       title="เพิ่ม Order หลังตัดรอบ"
       confirmLabel="ยืนยัน"
-      doneMessage={choice === 'today' ? 'เพิ่มเข้ารอบวันนี้แล้ว · แจ้งเตือนโรงงาน' : 'ส่งรอบถัดไปแล้ว'}
+      confirmDisabled={choice === 'today' && reason.trim() === ''}
+      doneMessage={choice === 'today' ? 'เพิ่มเข้ารอบวันนี้แล้ว · แจ้งโรงงานเมื่อบันทึก Order' : 'ส่งรอบถัดไป'}
+      onConfirm={() => onChoose(choice)}
     >
       <Alert color="orange" variant="light">
-        รอบ 13 พ.ย. 12:00 ตัดรอบไปแล้วเมื่อ 20 นาทีที่แล้ว
+        รอบ {formatThaiDate(today, 'D MMM')} 12:00 ตัดรอบไปแล้ว
       </Alert>
-      <Radio.Group value={choice} onChange={setChoice}>
+      <Radio.Group value={choice} onChange={(v) => setChoice(v === 'next' ? 'next' : 'today')}>
         <Stack gap="xs">
           <Radio.Card value="today" p="sm" radius="md">
             <Group wrap="nowrap" align="flex-start">
               <Radio.Indicator />
               <div>
-                <Text fw={600}>เพิ่มเข้ารอบวันนี้ (13 พ.ย.)</Text>
+                <Text fw={600}>เพิ่มเข้ารอบวันนี้ ({formatThaiDate(today, 'D MMM')})</Text>
                 <Text size="xs" c="dimmed">
                   เฉพาะหัวหน้า/Admin · ระบบแจ้งเตือนโรงงานและอัปเดตยอดผลิต
                 </Text>
@@ -274,7 +420,7 @@ function CutoffModal({ opened, onClose }: { opened: boolean; onClose: () => void
             <Group wrap="nowrap" align="flex-start">
               <Radio.Indicator />
               <div>
-                <Text fw={600}>ส่งรอบถัดไป (14 พ.ย. 12:00)</Text>
+                <Text fw={600}>ส่งรอบถัดไป ({formatThaiDate(nextRound, 'D MMM')} 12:00)</Text>
                 <Text size="xs" c="dimmed">
                   ไม่กระทบรอบที่ตัดแล้ว
                 </Text>
@@ -283,7 +429,13 @@ function CutoffModal({ opened, onClose }: { opened: boolean; onClose: () => void
           </Radio.Card>
         </Stack>
       </Radio.Group>
-      <Textarea label="เหตุผล" withAsterisk placeholder="เช่น ลูกค้าประจำขอด่วน" />
+      <Textarea
+        label="เหตุผล"
+        withAsterisk={choice === 'today'}
+        placeholder="เช่น ลูกค้าประจำขอด่วน"
+        value={reason}
+        onChange={(e) => setReason(e.currentTarget.value)}
+      />
       <Text size="xs" c="dimmed">
         Role &quot;หัวหน้า&quot; รอยืนยัน (Q41)
       </Text>
