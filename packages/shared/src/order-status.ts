@@ -1,15 +1,16 @@
 import { z } from 'zod';
 
 /**
- * สถานะ Order — ร่างจาก SRS 9 + "ส่งไม่ครบ" (SRS 26)
- * ยังไม่ final: รอคำตอบข้อ 6 ใน _requirements/Database-Design-Notes.md
+ * Order status (client answer Q6). Must match `enum OrderStatus` in
+ * apps/api/prisma/schema.prisma — change both together.
+ * "Partially shipped" is not a status; it is derived from shipment_items.
  */
 export const ORDER_STATUSES = [
-  'pending_review', // รอตรวจสอบ
-  'confirmed', // ยืนยันแล้ว
-  'factory_accepted', // โรงงานรับแล้ว
-  'partially_shipped', // ส่งไม่ครบ
-  'shipped', // จัดส่งแล้ว
+  'received', // รับออเดอร์
+  'awaiting_confirm', // รอยืนยัน
+  'in_production', // ผลิต
+  'ready_to_ship', // คีย์ข้อมูลส่ง
+  'in_transit', // ระหว่างจัดส่ง
   'delivered', // จัดส่งสำเร็จ
   'cancelled', // ยกเลิก
 ] as const;
@@ -18,11 +19,11 @@ export const orderStatusSchema = z.enum(ORDER_STATUSES);
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 
 export const ORDER_STATUS_LABEL_TH: Record<OrderStatus, string> = {
-  pending_review: 'รอตรวจสอบ',
-  confirmed: 'ยืนยันแล้ว',
-  factory_accepted: 'โรงงานรับแล้ว',
-  partially_shipped: 'ส่งไม่ครบ',
-  shipped: 'จัดส่งแล้ว',
+  received: 'รับออเดอร์',
+  awaiting_confirm: 'รอยืนยัน',
+  in_production: 'ผลิต',
+  ready_to_ship: 'คีย์ข้อมูลส่ง',
+  in_transit: 'ระหว่างจัดส่ง',
   delivered: 'จัดส่งสำเร็จ',
   cancelled: 'ยกเลิก',
 };

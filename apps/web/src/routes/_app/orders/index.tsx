@@ -12,7 +12,7 @@ import { orderListQuery } from '@/features/orders/api';
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
 import { formatThaiDate } from '@/lib/dayjs';
 
-/** filter ทั้งหมดอยู่ใน URL เช่น /orders?status=confirmed&page=2 (ตรวจด้วย schema เดียวกับ API) */
+/** filter ทั้งหมดอยู่ใน URL เช่น /orders?status=awaiting_confirm&page=2 (ตรวจด้วย schema เดียวกับ API) */
 export const Route = createFileRoute('/_app/orders/')({
   validateSearch: orderListQuerySchema,
   component: OrderListPage,

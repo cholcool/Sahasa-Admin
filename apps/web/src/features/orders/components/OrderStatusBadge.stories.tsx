@@ -7,15 +7,15 @@ import { OrderStatusBadge } from './OrderStatusBadge';
 const meta = {
   title: 'Orders/OrderStatusBadge',
   component: OrderStatusBadge,
-  args: { status: 'confirmed' },
+  args: { status: 'awaiting_confirm' },
 } satisfies Meta<typeof OrderStatusBadge>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Confirmed: Story = {
+export const AwaitingConfirm: Story = {
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('ยืนยันแล้ว')).toBeInTheDocument();
+    await expect(canvas.getByText('รอยืนยัน')).toBeInTheDocument();
   },
 };
 
