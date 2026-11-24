@@ -66,8 +66,9 @@ apps/api/
 ├── .env.example              ตัวอย่าง environment variable (คัดลอกเป็น .env)
 ├── AGENTS.md                 คำแนะนำของ NestJS 12 สำหรับ AI (ESM, Vitest, validation)
 ├── prisma/
-│   ├── schema.prisma         นิยามตารางทั้งหมด (ยังว่าง รอออกแบบ DB)
-│   └── migrations/           SQL migration ที่ Prisma สร้าง (ยังไม่มี)
+│   ├── schema.prisma         นิยามตารางทั้งหมด 52 ตาราง (แบบเต็มอยู่ในชีต Database ของ Project Detail.xlsx)
+│   ├── migrations/           SQL migration ที่ Prisma สร้าง (commit ทุกไฟล์ ห้ามแก้ไฟล์ที่ apply แล้ว)
+│   └── seed.sql              ข้อมูลตั้งต้น: ช่องทาง สินค้า ราคา ค่าส่ง จังหวัด ขนส่ง Role เมนู (รันซ้ำได้)
 ├── src/
 │   ├── main.ts               จุดเริ่มแอป: ตั้ง prefix /api, validation pipe, logger แล้ว listen PORT
 │   ├── app.module.ts         module หลัก: รวมทุก module + ตั้ง Config, Logger, ServeStatic (ส่ง apps/web/dist)
@@ -245,10 +246,30 @@ packages/shared/
 ```bash
 nvm use                                  # Node 22
 pnpm install
-cp apps/api/.env.example apps/api/.env   # ใส่ DATABASE_URL ของ MariaDB
+docker compose up -d                     # MariaDB 11.8 :3306 + phpMyAdmin :8080
+cp apps/api/.env.example apps/api/.env   # DATABASE_URL ตรงกับ docker-compose แล้ว
+pnpm --filter @sahasa/api exec prisma migrate dev   # สร้างตาราง + generate client
+pnpm --filter @sahasa/api db:seed        # ข้อมูลตั้งต้น
 pnpm --filter @sahasa/shared build
 pnpm dev                                 # api :3000 + web :5173 (proxy /api)
 ```
+
+### Database บนเครื่อง (Docker)
+
+`docker-compose.yml` ใช้สำหรับพัฒนาเท่านั้น เวอร์ชันตรงกับ Hostinger (MariaDB 11.8) ตั้ง `utf8mb4_unicode_ci` และ timezone UTC ไว้แล้ว
+
+- phpMyAdmin: http://localhost:8080 (login อัตโนมัติด้วย root)
+- ค่า user / password เริ่มต้นอยู่ใน `.env.example` ที่ root ถ้าจะเปลี่ยนให้คัดลอกเป็น `.env` และแก้ `DATABASE_URL` ใน `apps/api/.env` ให้ตรงกัน
+- `docker compose down` หยุด (ข้อมูลยังอยู่) · `docker compose down -v` ลบข้อมูลทั้งหมด
+
+| คำสั่ง (`pnpm --filter @sahasa/api …`)  | ทำอะไร                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `exec prisma migrate dev --name <ชื่อ>` | แก้ `schema.prisma` แล้วสร้าง migration ใหม่ + apply บนเครื่อง (ต้องถามทีมก่อน) |
+| `db:seed`                             | ใส่ข้อมูลตั้งต้น (เพิ่มเฉพาะแถวที่ยังไม่มี ไม่ทับค่าที่แก้ในระบบ)                         |
+| `db:reset`                            | ลบทุกตารางบนเครื่อง สร้างใหม่จาก migration แล้ว seed                         |
+| `exec prisma studio`                  | ดู/แก้ข้อมูลผ่าน browser                                                    |
+
+บน Hostinger ไม่ใช้ Docker: สร้าง database ใน hPanel แล้วรัน `prisma migrate deploy` (apply เฉพาะ migration ที่ยังไม่ได้รัน) ตามด้วย `db:seed` ครั้งแรก
 
 | คำสั่ง                                 | ทำอะไร                                          |
 | ------------------------------------ | ----------------------------------------------- |
@@ -271,6 +292,6 @@ pnpm dev                                 # api :3000 + web :5173 (proxy /api)
 
 ## สิ่งที่ยังไม่ได้ทำ
 
-- ตาราง database ทั้งหมด (รอลูกค้าตอบคำถาม 🔴)
+- query ตารางจริงใน service (ตอนนี้มีแค่ schema + seed) และผู้ใช้ admin คนแรก (รอ Better Auth)
 - Better Auth + session ใน MariaDB, RBAC ด้วย @casl/ability
 - Playwright E2E ของทั้งระบบ, Sentry

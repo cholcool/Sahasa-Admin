@@ -1,7 +1,7 @@
 # CLAUDE.md — Sahasa Admin
 
 ระบบหลังบ้านจัดการออเดอร์ของบริษัท สหัสสา (เต้าหู้ + น้ำจิ้ม) จาก Shopee, Lazada, TikTok, Line, Facebook, หน้าร้าน และโทรสั่ง
-ทีมมี 2 คน คือ **cholcool** และ **poom** ทั้งคู่ใช้ Claude ไฟล์นี้จึงเป็นกติกากลางของทั้งสองฝั่ง
+ทีมมี 2 คน คือ **cholcool** และ **fineart09** ทั้งคู่ใช้ Claude ไฟล์นี้จึงเป็นกติกากลางของทั้งสองฝั่ง
 
 - ตอบผู้ใช้เป็น**ภาษาไทย**
 - ก่อนเริ่มงานที่เกี่ยวกับ requirement หรือ database ให้อ่าน `_requirements/Database-Design-Notes.md` ก่อน (เป็นไฟล์หลักของโปรเจกต์) จากนั้นค่อยอ่าน `_requirements/Requirements-Analysis.md` และ prototype หน้าจอ `_requirements/Designs/sahasa-prototype.html`
@@ -32,9 +32,9 @@ pnpm monorepo · Node 22 (`nvm use`, เครื่องอาจมี Node 2
 
 ## Git
 
-- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `fineart09` (ของ poom) ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
+- แต่ละคนทำงานบน branch ของตัวเอง: `cholcool` หรือ `fineart09` ดู branch ปัจจุบันด้วย `git branch --show-current` ก่อนเริ่ม
 - **commit เฉพาะเมื่อผู้ใช้สั่งเท่านั้น** และห้าม push, merge, rebase หรือ force-push เอง
-- ห้ามแก้ไขหรือ commit ลง `main` และห้ามแตะ branch ของอีกคน **cholcool เป็นคนเดียวที่ merge เข้า `main`**
+- ห้ามแก้ไขหรือ commit ลง `main` และห้ามแตะ branch ของอีกคน **cholcool เป็นคนเดียวที่ merge เข้า `main`** (branch เดิมของ fineart09 คือ `poom` ถูกเปลี่ยนชื่อเป็น `fineart09`)
 - รูปแบบข้อความ commit: `[<app>][<module>]: <สิ่งที่ทำ เป็นภาษาอังกฤษ>`
   - `<app>`: `api` | `web` | `shared` | `root` (config ที่ root) | `docs`
   - `<module>`: ชื่อโมดูลตามตารางใน README เช่น `orders`, `factory`, `auth` (ถ้าไม่เจาะจงโมดูลให้เว้น เช่น `[root]: ...`)
@@ -95,9 +95,15 @@ pnpm --filter @sahasa/api exec prisma generate
 
 ## สถานะปัจจุบัน
 
-- ยังไม่มีตารางใน database เพราะรอลูกค้าตอบคำถาม 🔴 ใน Notes section 7 ห้ามออกแบบตารางเองโดยไม่ถาม
-- สถานะ order ใน `packages/shared/src/order-status.ts` ยังเป็นร่าง
-- โมดูล "สต็อก" ยังไม่ยืนยันว่าจะทำ (ข้อ 24 ใน Notes)
+- **Database ฉบับแรกสร้างแล้ว (2026-11-24)**: 52 ตารางใน `apps/api/prisma/schema.prisma` + migration `init` + `prisma/seed.sql` สรุปอยู่ใน Notes section 5.3 ใช้ตารางที่มีอยู่ก่อน ถ้าต้องเพิ่มหรือแก้ตาราง/คอลัมน์ ต้องถามก่อนเสมอ (ดู "ต้องถามก่อนทำ")
+  - DB บนเครื่อง: `docker compose up -d` (MariaDB 11.8 + phpMyAdmin :8080) แล้ว `prisma migrate dev` และ `pnpm --filter @sahasa/api db:seed`
+  - `created_by` / `updated_by` / `deleted_by` ไม่มี FK และ unique ของตารางที่ soft delete เป็น UNIQUE ธรรมดา (service ต้องเปลี่ยนค่าตอนลบถ้าจะให้ใช้ซ้ำได้)
+  - DATETIME เก็บ UTC ส่วน DATE (เช่น `round_date`) เป็นวันไทย ห้ามแปลง timezone ซ้ำ
+  - สมมติฐาน A1–A8 และสิทธิ์ตั้งต้นของแต่ละ Role ยังรอลูกค้ายืนยัน
+- สถานะ order ใน `packages/shared/src/order-status.ts` ตาม Q6 แล้ว ต้องตรงกับ `enum OrderStatus` ใน schema.prisma (มี test `order-status.spec.ts` ตรวจ) "ส่งไม่ครบ" ไม่ใช่สถานะ ให้คำนวณจาก `shipment_items`
+- ไม่ทำโมดูลสต็อกและ lot (Q24–25)
+- ยังไม่มี: login (Better Auth), user admin คนแรก, ข้อมูลร้านบน platform และบัญชีธนาคาร, query จริงใน service
+- คำถามลูกค้าที่ยังค้าง (โดยเฉพาะบัญชี/ภาษี ข้อ 13–21) อยู่ใน Notes section 7 ห้ามเดาคำตอบเอง
 - เรื่องที่ตัดสินใจใหม่ให้บันทึกลง Notes ด้วย ไม่ใช่เก็บไว้ในแชตอย่างเดียว
 
 ตั้งค่าส่วนตัวแต่ละคน (เช่น path ของเครื่อง หรือสไตล์การตอบ) ให้เขียนใน `CLAUDE.local.md` ซึ่งไม่ถูก commit

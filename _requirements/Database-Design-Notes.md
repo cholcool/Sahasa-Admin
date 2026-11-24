@@ -84,6 +84,7 @@
 
 ### สินค้าและราคา (จาก Shopee / Lazada)
 - **เต้าหู้คลองแงะ เนื้อคัสตาร์ด** แพ็ค 10 ชิ้น 2 kg
+  - ⚠️ "แพ็ค 10 ชิ้น" เป็นแค่ชื่อ listing บน Shopee ในระบบ**นับและคิดราคาเป็นชิ้น**ทุกช่องทาง (ชีต `ราคาสินค้าและค่าขนส่ง`: บาท/ชิ้น, ชุด, ครั้ง) SKU บน platform แปลงเป็นชิ้นด้วย `sku_mappings.units_per_sku`
   - Shopee: ราคาตั้ง 350 ลดตามจำนวน (2 แพ็ค = แพ็คละ 300, 10 แพ็ค = แพ็คละ 280)
   - Lazada: 450 (รวมค่าส่ง +50 ที่ใส่เป็นตัวเลือกสินค้า)
 - **น้ำจิ้มมะขามน้ำตาลตะโหนด** 400g ราคา 75 บาท (ขายแยก ไม่ใช่ของแถม)
@@ -241,7 +242,7 @@ packages/shared  zod schema, type, enum สถานะ order
 | Engine | InnoDB ทุกตาราง | ต้องมี transaction และ foreign key |
 | JSON (raw payload, audit log) | ชนิด `JSON` (ใน MariaDB คือ `LONGTEXT` + `CHECK (JSON_VALID(...))`) | ไม่มี JSONB ใช้เก็บไว้ดูย้อนหลังได้ ถ้าต้องค้นหาฟิลด์ข้างในบ่อยให้ดึงออกมาเป็นคอลัมน์ปกติ |
 | กันออเดอร์ซ้ำ (แทน partial unique index) | UNIQUE `(channel_id, platform_order_no)` ได้ตรงๆ เพราะ MariaDB ยอมให้มี NULL ซ้ำใน unique index ออเดอร์ Manual ที่ไม่มีเลข platform จึงไม่ชนกัน | ไม่ต้องใช้ partial index |
-| Unique ที่ต้องไม่นับแถวที่ลบแล้ว (soft delete) | เพิ่ม generated column เช่น `active_key = IF(is_deleted, NULL, order_number)` แล้วทำ UNIQUE บนคอลัมน์นั้น | แทน `WHERE is_deleted = false` |
+| Unique ที่ต้องไม่นับแถวที่ลบแล้ว (soft delete) | ~~generated column~~ → **ใช้ UNIQUE ธรรมดา** (ตัดสินใจ 2026-11-24): แถวที่ soft delete ยังถือ code เดิมไว้ ถ้าต้องใช้ email / username ซ้ำ ให้ service เปลี่ยนค่าตอนลบ เช่น `name~deleted~<id>` | Prisma ไม่รองรับ generated column ถ้าเพิ่มเองใน SQL migration ครั้งถัดไป Prisma จะพยายามลบทิ้ง |
 | เวลา | `DATETIME(3)` เก็บเป็น UTC ไม่ใช้ `TIMESTAMP` | `TIMESTAMP` ใช้ได้ถึงปี 2038 และแปลง timezone ตาม session ทำให้สับสน |
 | เลขที่เอกสาร | ตาราง `document_sequences` + `SELECT … FOR UPDATE` ใน transaction | เลขต้องรันต่อเนื่องห้ามข้ามหรือซ้ำ |
 | Prisma | `provider = "mysql"` + driver adapter สำหรับ MariaDB (`@prisma/adapter-mariadb`) | Prisma รองรับ MariaDB ผ่าน provider mysql |
@@ -250,9 +251,24 @@ packages/shared  zod schema, type, enum สถานะ order
 | Backup | backup ของ Hostinger + cron รัน `mysqldump` ทุกวันแล้วส่งสำเนาไปเก็บนอก Hostinger (เช่น Google Drive หรือ R2) | ข้อมูลบัญชีห้ามหาย และไม่ควรมีสำเนาอยู่ที่เดียว |
 
 **ต้องเช็กใน hPanel**
-- [ ] เวอร์ชัน MariaDB (ควรเป็น 10.6 ขึ้นไป)
+- [x] เวอร์ชัน MariaDB: **11.8.9** (เช็กแล้ว 2026-11-24) ใน Docker ใช้ `mariadb:11.8` ให้ตรงกัน
 - [ ] ขนาด database สูงสุดที่ได้ และพื้นที่ disk ที่เหลือ (สำหรับเก็บสลิป)
-- [ ] เปิด Remote MySQL ได้ไหม (ใช้ต่อจากเครื่องตอนพัฒนา หรือใช้ local MariaDB ผ่าน Docker แทน)
+- [x] ตอนพัฒนาใช้ MariaDB ใน Docker บนเครื่อง (`docker-compose.yml`) ไม่ต่อ DB ของ Hostinger ตรง
+
+## 5.3 Database ฉบับแรก ✅ (สร้างแล้ว 2026-11-24)
+
+แบบเต็มทุกคอลัมน์อยู่ในชีต `Database` ของ `Documents/Project Detail.xlsx` (ไม่อยู่ใน git) และเขียนเป็นโค้ดแล้วใน `apps/api/prisma/schema.prisma` + migration `prisma/migrations/*_init`
+
+- **52 ตาราง** 9 กลุ่ม: ผู้ใช้/สิทธิ์, ข้อมูลหลัก (ช่องทาง สินค้า ราคา ค่าส่ง ขนส่ง), ลูกค้า, ออเดอร์ + รอบส่ง, การจัดส่ง, การรับเงิน, เอกสารบัญชี, platform + import, งานเบื้องหลัง
+- ไม่มีตารางสต็อกและ lot (Q24–25 ตอบว่าไม่จำเป็น)
+- **หน่วย**: เต้าหู้ = ชิ้น, น้ำจิ้ม = ชุด, ค่าส่ง = ครั้ง/ออเดอร์
+- **สถานะออเดอร์** (Q6): `received` → `awaiting_confirm` → `in_production` → `ready_to_ship` → `in_transit` → `delivered` (+ `cancelled`) "ส่งไม่ครบ" ไม่ใช่สถานะ ให้คำนวณจาก `shipment_items`
+- **รอบส่ง** (Q7–9): 1 รอบต่อวัน `delivery_rounds.round_date` = วันส่ง (DATE วันไทย), `opens_at` = 13:00 วันก่อน, `edit_lock_at` = 10:00, `ship_at` = 12:00 เก็บเป็น UTC เช่น รอบ 24 พ.ย. → `opens_at` = `2026-11-23T06:00:00.000Z` ค่าเวลาอยู่ในตาราง `settings`
+- **เวลา**: DATETIME(3) เก็บ UTC, DATE เก็บวันไทย `YYYY-MM-DD` (Prisma คืน DATE เป็นเที่ยงคืน UTC ห้ามแปลง timezone ซ้ำ) รายงานรายวันจัดกลุ่มด้วย `DATE(ordered_at + INTERVAL 7 HOUR)`
+- **audit column** (`created_by`, `updated_by`, `deleted_by`) เป็นไอดีธรรมดา ไม่มี FK เพื่อไม่ให้ model User มี relation ย้อนกลับเกือบ 100 ช่อง ส่วนคนที่ทำงานสำคัญ (`confirmed_by`, `verified_by`, `voided_by` ฯลฯ) มี FK จริง
+- **Seed** (`apps/api/prisma/seed.sql`): 7 ช่องทาง, 2 สินค้า, 4 กลุ่มราคา, 11 กฎราคา, 4 กฎค่าส่ง, 2 ภาค + 77 จังหวัด (กทม. ปริมณฑล ภาคใต้ = 20 จังหวัด ตาม Q3), 5 ขนส่ง, เหตุผลยกเลิก 3 ข้อ (Q39) + "อื่นๆ", 6 Role + 12 เมนู + สิทธิ์ตั้งต้น, เวลาตัดรอบ
+- ยังไม่ seed (ต้องใช้ข้อมูลจริง กรอกในระบบ): ร้านบน platform, บัญชีธนาคาร, ผู้ใช้ (รอทำ Better Auth)
+- สมมติฐานที่ยังต้องยืนยันกับลูกค้า: A1–A8 ในชีต `Database` (เช่น ออเดอร์ช่วง 10:00–13:00 ไปรอบไหน, ค่าส่ง Lazada นอก กทม., ค่าส่ง Shopee/TikTok 150 ใครเก็บ) และสิทธิ์ตั้งต้นของแต่ละ Role ใน seed
 
 ---
 
@@ -354,6 +370,6 @@ packages/shared  zod schema, type, enum สถานะ order
 
 ## 8. ขั้นตอนถัดไป
 1. ได้คำตอบจากหัวข้อ 7 (อย่างน้อยกลุ่ม 🔴) และไฟล์ TikTok
-2. เขียนแบบ database ฉบับเต็ม: ER diagram + รายละเอียดคอลัมน์ทุกตาราง + DDL (MariaDB)
+2. ~~เขียนแบบ database ฉบับเต็ม~~ ✅ 2026-11-24 (ดู 5.3) เหลือ ER diagram
 3. ออกแบบ Order Status Flow และ Role–Permission Matrix
 4. วางแผนย้ายข้อมูลจาก AppSheet (ถ้าต้องย้าย)

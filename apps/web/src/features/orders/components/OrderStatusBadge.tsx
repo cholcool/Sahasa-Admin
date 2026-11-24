@@ -3,11 +3,11 @@ import { ORDER_STATUS_LABEL_TH, type OrderStatus } from '@sahasa/shared';
 
 // Colors follow UI Prototype/pages/03-01_order-list.html
 export const ORDER_STATUS_COLOR: Record<OrderStatus, MantineColor> = {
-  pending_review: 'orange',
-  confirmed: 'blue',
-  factory_accepted: 'gray',
-  partially_shipped: 'gold',
-  shipped: 'cyan',
+  received: 'orange',
+  awaiting_confirm: 'blue',
+  in_production: 'gray',
+  ready_to_ship: 'gold',
+  in_transit: 'cyan',
   delivered: 'green',
   cancelled: 'brand',
 };

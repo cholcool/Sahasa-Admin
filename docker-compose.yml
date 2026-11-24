@@ -1,0 +1,57 @@
+# Local development database only. Production uses Hostinger MariaDB (11.8) and
+# creates tables with `prisma migrate deploy`.
+#
+#   docker compose up -d      start MariaDB + phpMyAdmin
+#   docker compose down       stop (data is kept in the volume)
+#   docker compose down -v    stop and DELETE all local data
+#
+# Values come from ./.env (copy .env.example). Defaults below are dev-only.
+name: sahasa-admin
+
+services:
+  mariadb:
+    # Same major/minor as Hostinger (11.8.x LTS)
+    image: mariadb:11.8
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root-dev-only}
+      MARIADB_DATABASE: ${DB_NAME:-sahasa_admin}
+      MARIADB_USER: ${DB_USER:-sahasa}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-sahasa-dev-only}
+    command:
+      - --character-set-server=utf8mb4
+      # 11.8 defaults to utf8mb4_uca1400_ai_ci; pin the collation used in the design
+      - --collation-server=utf8mb4_unicode_ci
+      - --character-set-collations=utf8mb4=utf8mb4_unicode_ci
+      # Store and compare DATETIME as UTC (CURRENT_TIMESTAMP(3) = UTC)
+      - --default-time-zone=+00:00
+      - --max-connections=50
+    ports:
+      - '${DB_PORT:-3306}:3306'
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      # Runs only when the volume is first created
+      - ./docker/mariadb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mariadb
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-root-dev-only}
+      UPLOAD_LIMIT: 64M
+    ports:
+      - '${PMA_PORT:-8080}:80'
+
+volumes:
+  mariadb-data:
