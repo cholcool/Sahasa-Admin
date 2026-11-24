@@ -1,6 +1,20 @@
-// Sahasa Admin — Prisma schema (MariaDB ของ Hostinger)
-// ตารางจริงจะเพิ่มหลังลูกค้าตอบคำถาม 🔴 ใน _requirements/Database-Design-Notes.md section 7
-// หลักที่ใช้ทุกตาราง: utf8mb4_unicode_ci, InnoDB, เงิน Decimal(12,2), เวลา DateTime(3) เก็บเป็น UTC
+// Sahasa Admin — Prisma schema (MariaDB 11.8 on Hostinger)
+// Source of truth: "Project Detail.xlsx" › sheet "Database" (kept outside git, ask cholcool).
+//
+// Rules used in every model:
+// - Tables/columns are snake_case in the DB (@@map / @map), camelCase in TS
+// - Ids are BIGINT UNSIGNED AUTO_INCREMENT (TS type: bigint)
+// - Money is Decimal(12,2); never use float
+// - DATETIME(3) stores UTC; DATE columns hold the Thai business date (YYYY-MM-DD)
+// - Charset/collation: utf8mb4 / utf8mb4_unicode_ci (Prisma writes it on every CREATE TABLE)
+//
+// Audit columns (created_by / updated_by / deleted_by) are plain ids without a FK
+// relation: a relation would add ~100 back-relation fields to User. Business FKs to
+// users (confirmed_by, verified_by, …) are real relations.
+//
+// Unique keys on soft-deleted tables (users, roles, products, price_groups, customers)
+// are plain UNIQUE: a soft-deleted row keeps its code. To reuse an email/username, the
+// service rewrites the value on delete (e.g. "name~deleted~<id>").
 
 generator client {
   provider = "prisma-client"
@@ -9,4 +23,1444 @@ generator client {
 
 datasource db {
   provider = "mysql"
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum ChannelKind {
+  marketplace
+  manual
+}
+
+enum Billing {
+  VAT
+  NOVAT
+}
+
+enum ProductKind {
+  tofu
+  sauce
+  other
+}
+
+enum CustomerType {
+  person
+  company
+}
+
+enum DeliveryRoundStatus {
+  open
+  locked
+  shipped
+}
+
+enum OrderSource {
+  manual
+  upload
+  api
+}
+
+/// Q6: รับออเดอร์ → รอยืนยัน → ผลิต → คีย์ข้อมูลส่ง → ระหว่างจัดส่ง → จัดส่งสำเร็จ (+ ยกเลิก)
+enum OrderStatus {
+  received
+  awaiting_confirm
+  in_production
+  ready_to_ship
+  in_transit
+  delivered
+  cancelled
+}
+
+enum VatMode {
+  none
+  included
+  excluded
+}
+
+enum PaymentStatus {
+  platform
+  unpaid
+  partial
+  paid
+  overpaid
+}
+
+enum PlatformSyncStatus {
+  none
+  pending
+  ok
+  error
+}
+
+enum ShipmentKind {
+  normal
+  resend_short
+  resend_claim
+}
+
+enum DataSource {
+  api
+  manual
+}
+
+enum ShipmentStatus {
+  pending
+  label_printed
+  shipped
+  in_transit
+  delivered
+  failed
+  returned
+}
+
+enum PrintDocType {
+  pick_list
+  label
+  tax_invoice
+  receipt
+  credit_note
+}
+
+enum PaymentMethod {
+  transfer
+  cash
+  platform
+}
+
+enum PaymentVerifyStatus {
+  pending
+  verified
+  rejected
+}
+
+enum DocumentType {
+  tax_invoice_full
+  tax_invoice_abb
+  receipt
+  credit_note
+}
+
+enum DocumentStatus {
+  issued
+  voided
+}
+
+enum AccountingExportStatus {
+  done
+  error
+}
+
+enum CredentialStatus {
+  connected
+  expired
+  error
+  disconnected
+}
+
+enum ImportSource {
+  file
+  api
+  webhook
+}
+
+enum ImportFileType {
+  order_template
+  shopee_orders
+  shopee_income
+  lazada_orders
+  lazada_transactions
+  tiktok_orders
+  appsheet_migration
+  api_pull
+}
+
+enum ImportBatchStatus {
+  processing
+  done
+  failed
+}
+
+enum RawRecordResult {
+  pending
+  created
+  updated
+  skipped
+  error
+}
+
+enum JobStatus {
+  pending
+  running
+  done
+  failed
+  dead
+}
+
+// ───────────────────────── 1. Users, permissions, login ─────────────────────────
+
+/// ผู้ใช้งานระบบ (พนักงาน)
+model User {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  username      String    @unique @db.VarChar(50)
+  email         String    @unique @db.VarChar(255)
+  emailVerified Boolean   @default(false) @map("email_verified")
+  name          String    @db.VarChar(100)
+  phone         String?   @db.VarChar(20)
+  roleId        BigInt    @map("role_id") @db.UnsignedBigInt
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLoginAt   DateTime? @map("last_login_at") @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy     BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy     BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt     DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy     BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  role                     Role            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  accounts                 AuthAccount[]
+  sessions                 AuthSession[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]
+  lockedRounds             DeliveryRound[] @relation("DeliveryRoundLockedBy")
+  confirmedOrders          Order[]         @relation("OrderConfirmedBy")
+  productionAcceptedOrders Order[]         @relation("OrderProductionAcceptedBy")
+  cancelledOrders          Order[]         @relation("OrderCancelledBy")
+  verifiedPayments         Payment[]       @relation("PaymentVerifiedBy")
+  voidedDocuments          Document[]      @relation("DocumentVoidedBy")
+
+  @@index([roleId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// ข้อมูล login ของ Better Auth (เก็บ hash รหัสผ่าน)
+model AuthAccount {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId     BigInt   @map("user_id") @db.UnsignedBigInt
+  providerId String   @default("credential") @map("provider_id") @db.VarChar(50)
+  accountId  String   @map("account_id") @db.VarChar(255)
+  /// argon2 hash, never the plain password
+  password   String?  @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy  BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+/// session ที่ login อยู่ (เก็บใน DB ไม่เก็บใน RAM)
+model AuthSession {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt   @map("user_id") @db.UnsignedBigInt
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime @map("expires_at") @db.DateTime(3)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+/// token ชั่วคราว เช่น ลิงก์รีเซ็ตรหัสผ่าน
+model AuthVerification {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  identifier String   @db.VarChar(255)
+  value      String   @db.VarChar(255)
+  expiresAt  DateTime @map("expires_at") @db.DateTime(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy  BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  @@index([identifier])
+  @@map("auth_verifications")
+}
+
+/// Role ของผู้ใช้ ตั้งต้น 6 Role และสร้างเพิ่มเองได้ (Q22)
+model Role {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  code        String    @unique @db.VarChar(50)
+  name        String    @db.VarChar(100)
+  description String?   @db.VarChar(255)
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy   BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy   BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt   DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy   BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  users         User[]
+  permissions   RolePermission[]
+  notifications Notification[]
+
+  @@index([deletedAt])
+  @@map("roles")
+}
+
+/// รายการเมนู / โมดูลของระบบ ใช้กำหนดสิทธิ์
+model Menu {
+  id        BigInt  @id @default(autoincrement()) @db.UnsignedBigInt
+  code      String  @unique @db.VarChar(50)
+  name      String  @db.VarChar(100)
+  parentId  BigInt? @map("parent_id") @db.UnsignedBigInt
+  path      String? @db.VarChar(100)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  parent      Menu?            @relation("MenuTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Menu[]           @relation("MenuTree")
+  permissions RolePermission[]
+
+  @@index([parentId])
+  @@map("menus")
+}
+
+/// สิทธิ์ของแต่ละ Role ต่อแต่ละเมนู (can_view = เห็นเมนู)
+model RolePermission {
+  id                BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  roleId            BigInt   @map("role_id") @db.UnsignedBigInt
+  menuId            BigInt   @map("menu_id") @db.UnsignedBigInt
+  canView           Boolean  @default(false) @map("can_view")
+  canCreate         Boolean  @default(false) @map("can_create")
+  canEdit           Boolean  @default(false) @map("can_edit")
+  canConfirm        Boolean  @default(false) @map("can_confirm")
+  canCancel         Boolean  @default(false) @map("can_cancel")
+  canAddAfterCutoff Boolean  @default(false) @map("can_add_after_cutoff")
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy         BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy         BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, menuId])
+  @@index([menuId])
+  @@map("role_permissions")
+}
+
+/// การแจ้งเตือนในระบบ (API error, ออเดอร์ค้าง, ฯลฯ)
+model Notification {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt?   @map("user_id") @db.UnsignedBigInt
+  roleId    BigInt?   @map("role_id") @db.UnsignedBigInt
+  type      String    @db.VarChar(50)
+  title     String    @db.VarChar(200)
+  body      String?   @db.Text
+  link      String?   @db.VarChar(255)
+  readAt    DateTime? @map("read_at") @db.DateTime(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?   @map("created_by") @db.UnsignedBigInt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role? @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+/// ประวัติการกระทำสำคัญของผู้ใช้ (ใครทำอะไร เมื่อไร)
+model AuditLog {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId     BigInt?  @map("user_id") @db.UnsignedBigInt
+  action     String   @db.VarChar(50)
+  entityType String?  @map("entity_type") @db.VarChar(50)
+  entityId   String?  @map("entity_id") @db.VarChar(50)
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ───────────────────────── 2. Master data ─────────────────────────
+
+/// ช่องทางขาย 7 ช่องทาง (code ตรงกับ packages/shared CHANNELS)
+model Channel {
+  code            String      @id @db.VarChar(20)
+  name            String      @db.VarChar(50)
+  kind            ChannelKind
+  defaultBilling  Billing     @default(NOVAT) @map("default_billing")
+  showOnDashboard Boolean     @default(true) @map("show_on_dashboard")
+  sortOrder       Int         @default(0) @map("sort_order")
+  isActive        Boolean     @default(true) @map("is_active")
+
+  shops                PlatformShop[]
+  priceRules           PriceRuleChannel[]
+  shippingRules        ShippingRuleChannel[]
+  firstSeenByCustomers Customer[]
+  orders               Order[]
+
+  @@map("channels")
+}
+
+/// ร้านค้าบน marketplace (ตอนนี้ 1 ร้านต่อ platform แต่รองรับหลายร้าน)
+model PlatformShop {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  channelCode    String   @map("channel_code") @db.VarChar(20)
+  shopName       String   @map("shop_name") @db.VarChar(150)
+  externalShopId String?  @map("external_shop_id") @db.VarChar(50)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  channel       Channel                   @relation(fields: [channelCode], references: [code])
+  credential    PlatformCredential?
+  buyerAccounts CustomerPlatformAccount[]
+  orders        Order[]
+  skuMappings   SkuMapping[]
+  importBatches ImportBatch[]
+  payouts       Payout[]
+  payoutLines   PayoutLine[]
+  syncLogs      SyncLog[]
+
+  @@unique([channelCode, externalShopId])
+  @@map("platform_shops")
+}
+
+/// สินค้า (เต้าหู้ = ชิ้น, น้ำจิ้ม = ชุด)
+model Product {
+  id        BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  code      String      @unique @db.VarChar(20)
+  name      String      @db.VarChar(150)
+  shortName String      @map("short_name") @db.VarChar(50)
+  kind      ProductKind @default(other)
+  /// Selling and pricing unit: tofu = ชิ้น, sauce = ชุด
+  unit      String      @db.VarChar(20)
+  listPrice Decimal     @default(0.00) @map("list_price") @db.Decimal(12, 2)
+  sortOrder Int         @default(0) @map("sort_order")
+  isActive  Boolean     @default(true) @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?     @map("created_by") @db.UnsignedBigInt
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy BigInt?     @map("updated_by") @db.UnsignedBigInt
+  deletedAt DateTime?   @map("deleted_at") @db.DateTime(3)
+  deletedBy BigInt?     @map("deleted_by") @db.UnsignedBigInt
+
+  priceRules  PriceRule[]
+  orderItems  OrderItem[]
+  skuMappings SkuMapping[]
+
+  @@index([deletedAt])
+  @@map("products")
+}
+
+/// กลุ่มราคาพิเศษของลูกค้า เช่น แฟรนไชส์ สมิทธ์, ลูกค้าส่ง A/B, เจเอฟบี
+model PriceGroup {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  code        String    @unique @db.VarChar(30)
+  name        String    @db.VarChar(150)
+  description String?   @db.VarChar(255)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy   BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy   BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt   DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy   BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  priceRules PriceRule[]
+  customers  Customer[]
+
+  @@index([deletedAt])
+  @@map("price_groups")
+}
+
+/// กฎราคาต่อหน่วย: ตามช่องทาง + จำนวนขั้นต่ำ หรือตามกลุ่มราคาลูกค้า
+model PriceRule {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  productId     BigInt    @map("product_id") @db.UnsignedBigInt
+  /// NULL = channel price (see price_rule_channels)
+  priceGroupId  BigInt?   @map("price_group_id") @db.UnsignedBigInt
+  minQty        Int       @default(1) @map("min_qty")
+  unitPrice     Decimal   @map("unit_price") @db.Decimal(12, 2)
+  conditionText String?   @map("condition_text") @db.VarChar(255)
+  /// Thai business date (YYYY-MM-DD)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy     BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy     BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt     DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy     BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  product    Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  priceGroup PriceGroup?        @relation(fields: [priceGroupId], references: [id], onDelete: Restrict)
+  channels   PriceRuleChannel[]
+  orderItems OrderItem[]
+
+  @@index([productId, priceGroupId, minQty])
+  @@index([priceGroupId])
+  @@index([deletedAt])
+  @@map("price_rules")
+}
+
+/// ช่องทางที่กฎราคาใช้ได้ (1 กฎใช้ได้หลายช่องทาง)
+model PriceRuleChannel {
+  priceRuleId BigInt @map("price_rule_id") @db.UnsignedBigInt
+  channelCode String @map("channel_code") @db.VarChar(20)
+
+  priceRule PriceRule @relation(fields: [priceRuleId], references: [id], onDelete: Cascade)
+  channel   Channel   @relation(fields: [channelCode], references: [code])
+
+  @@id([priceRuleId, channelCode])
+  @@index([channelCode])
+  @@map("price_rule_channels")
+}
+
+/// ภาคสำหรับคิดค่าส่ง
+model Region {
+  id   BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  code String @unique @db.VarChar(20)
+  name String @db.VarChar(100)
+
+  provinces     Province[]
+  shippingRules ShippingRule[]
+
+  @@map("regions")
+}
+
+/// จังหวัด 77 จังหวัด ผูกกับภาค (ใช้หาค่าส่งจากที่อยู่)
+model Province {
+  id       BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  nameTh   String @unique @map("name_th") @db.VarChar(100)
+  regionId BigInt @map("region_id") @db.UnsignedBigInt
+
+  region            Region            @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  customerAddresses CustomerAddress[]
+  orders            Order[]
+  shipments         Shipment[]
+
+  @@index([regionId])
+  @@map("provinces")
+}
+
+/// ค่าส่งที่เรียกเก็บลูกค้า (เหมาต่อออเดอร์)
+model ShippingRule {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name          String    @db.VarChar(150)
+  /// NULL = every region
+  regionId      BigInt?   @map("region_id") @db.UnsignedBigInt
+  sauceOnly     Boolean   @default(false) @map("sauce_only")
+  fee           Decimal   @db.Decimal(12, 2)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy     BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy     BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt     DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy     BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  region   Region?               @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  channels ShippingRuleChannel[]
+  orders   Order[]
+
+  @@index([regionId])
+  @@index([deletedAt])
+  @@map("shipping_rules")
+}
+
+/// ช่องทางที่กฎค่าส่งใช้ได้
+model ShippingRuleChannel {
+  shippingRuleId BigInt @map("shipping_rule_id") @db.UnsignedBigInt
+  channelCode    String @map("channel_code") @db.VarChar(20)
+
+  shippingRule ShippingRule @relation(fields: [shippingRuleId], references: [id], onDelete: Cascade)
+  channel      Channel      @relation(fields: [channelCode], references: [code])
+
+  @@id([shippingRuleId, channelCode])
+  @@index([channelCode])
+  @@map("shipping_rule_channels")
+}
+
+/// บริษัทขนส่ง (Q26, Q28)
+model Carrier {
+  id                  BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  code                String   @unique @db.VarChar(20)
+  name                String   @db.VarChar(100)
+  branchName          String?  @map("branch_name") @db.VarChar(100)
+  hasApi              Boolean  @default(false) @map("has_api")
+  /// AES-256-GCM encrypted
+  apiConfigEnc        String?  @map("api_config_enc") @db.Text
+  trackingUrlTemplate String?  @map("tracking_url_template") @db.VarChar(255)
+  sortOrder           Int      @default(0) @map("sort_order")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy           BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy           BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  orders    Order[]
+  shipments Shipment[]
+  syncLogs  SyncLog[]
+
+  @@map("carriers")
+}
+
+/// เหตุผลการยกเลิกออเดอร์ (Q39)
+model CancelReason {
+  id           BigInt  @id @default(autoincrement()) @db.UnsignedBigInt
+  name         String  @db.VarChar(150)
+  requiresNote Boolean @default(false) @map("requires_note")
+  sortOrder    Int     @default(0) @map("sort_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  orders Order[]
+
+  @@map("cancel_reasons")
+}
+
+/// บัญชีรับเงินของบริษัท (VAT = บัญชีบริษัท, NOVAT = บัญชีบุคคล)
+model BankAccount {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  bankName    String   @map("bank_name") @db.VarChar(100)
+  accountName String   @map("account_name") @db.VarChar(150)
+  accountNo   String   @map("account_no") @db.VarChar(30)
+  billing     Billing
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy   BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy   BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  payments Payment[]
+  payouts  Payout[]
+
+  @@map("bank_accounts")
+}
+
+/// ค่าตั้งระบบแบบ key-value เช่น round.edit_lock_time = "10:00"
+model Setting {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  @@map("settings")
+}
+
+/// ตัวนับเลขที่เอกสาร (ล็อกด้วย SELECT … FOR UPDATE กันเลขซ้ำ)
+model DocumentSequence {
+  id      BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  /// ORD, INV, ABB, RC, CN
+  docType String @map("doc_type") @db.VarChar(10)
+  /// e.g. "2611" (year-month) or "" = continuous (waiting for Q20)
+  period  String @default("") @db.VarChar(6)
+  lastNo  Int    @default(0) @map("last_no")
+
+  @@unique([docType, period])
+  @@map("document_sequences")
+}
+
+// ───────────────────────── 3. Customers ─────────────────────────
+
+/// ลูกค้าทุกช่องทาง รวมผู้ซื้อจาก marketplace
+model Customer {
+  id               BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  code             String       @unique @db.VarChar(20)
+  name             String       @db.VarChar(200)
+  customerType     CustomerType @default(person) @map("customer_type")
+  defaultBilling   Billing      @default(NOVAT) @map("default_billing")
+  priceGroupId     BigInt?      @map("price_group_id") @db.UnsignedBigInt
+  firstChannelCode String?      @map("first_channel_code") @db.VarChar(20)
+  lineId           String?      @map("line_id") @db.VarChar(100)
+  facebookName     String?      @map("facebook_name") @db.VarChar(150)
+  note             String?      @db.Text
+  createdAt        DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy        BigInt?      @map("created_by") @db.UnsignedBigInt
+  updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy        BigInt?      @map("updated_by") @db.UnsignedBigInt
+  deletedAt        DateTime?    @map("deleted_at") @db.DateTime(3)
+  deletedBy        BigInt?      @map("deleted_by") @db.UnsignedBigInt
+
+  priceGroup       PriceGroup?               @relation(fields: [priceGroupId], references: [id], onDelete: Restrict)
+  firstChannel     Channel?                  @relation(fields: [firstChannelCode], references: [code])
+  phones           CustomerPhone[]
+  addresses        CustomerAddress[]
+  taxProfiles      CustomerTaxProfile[]
+  platformAccounts CustomerPlatformAccount[]
+  orders           Order[]
+  documents        Document[]
+
+  @@index([name])
+  @@index([priceGroupId])
+  @@index([deletedAt])
+  @@map("customers")
+}
+
+/// เบอร์โทรลูกค้า (1 คนมีหลายเบอร์)
+model CustomerPhone {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  customerId BigInt   @map("customer_id") @db.UnsignedBigInt
+  /// Digits only
+  phone      String   @db.VarChar(20)
+  label      String?  @db.VarChar(50)
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy  BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([phone])
+  @@map("customer_phones")
+}
+
+/// ที่อยู่จัดส่ง (1 คนมีหลายที่อยู่)
+model CustomerAddress {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  customerId     BigInt    @map("customer_id") @db.UnsignedBigInt
+  label          String?   @db.VarChar(50)
+  recipientName  String    @map("recipient_name") @db.VarChar(200)
+  recipientPhone String    @map("recipient_phone") @db.VarChar(20)
+  addressLine    String    @map("address_line") @db.Text
+  provinceId     BigInt?   @map("province_id") @db.UnsignedBigInt
+  postcode       String?   @db.VarChar(5)
+  isDefault      Boolean   @default(false) @map("is_default")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt      DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy      BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  customer Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  province Province? @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([provinceId])
+  @@index([deletedAt])
+  @@map("customer_addresses")
+}
+
+/// ข้อมูลออกใบกำกับภาษี (1 คนมีหลายบริษัทได้)
+model CustomerTaxProfile {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  customerId BigInt    @map("customer_id") @db.UnsignedBigInt
+  taxName    String    @map("tax_name") @db.VarChar(255)
+  taxId      String    @map("tax_id") @db.VarChar(13)
+  /// "00000" = head office
+  branchCode String    @default("00000") @map("branch_code") @db.VarChar(5)
+  address    String    @db.Text
+  isDefault  Boolean   @default(false) @map("is_default")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy  BigInt?   @map("updated_by") @db.UnsignedBigInt
+  deletedAt  DateTime? @map("deleted_at") @db.DateTime(3)
+  deletedBy  BigInt?   @map("deleted_by") @db.UnsignedBigInt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@index([customerId])
+  @@index([taxId])
+  @@index([deletedAt])
+  @@map("customer_tax_profiles")
+}
+
+/// บัญชีผู้ซื้อบน marketplace ที่ผูกกับลูกค้า (ใช้จับคู่ลูกค้าเดิม)
+model CustomerPlatformAccount {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  customerId     BigInt   @map("customer_id") @db.UnsignedBigInt
+  platformShopId BigInt   @map("platform_shop_id") @db.UnsignedBigInt
+  buyerId        String   @map("buyer_id") @db.VarChar(100)
+  buyerUsername  String?  @map("buyer_username") @db.VarChar(150)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  platformShop PlatformShop @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+
+  @@unique([platformShopId, buyerId])
+  @@index([customerId])
+  @@map("customer_platform_accounts")
+}
+
+// ───────────────────────── 4. Orders ─────────────────────────
+
+/// รอบส่ง 1 รอบต่อวัน: รับ 13:00 วันก่อน → แก้ไขได้ถึง 10:00 → ส่ง 12:00 (เวลาไทย)
+model DeliveryRound {
+  id         BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  /// Ship date, Thai business date, e.g. 2026-11-24
+  roundDate  DateTime            @unique @map("round_date") @db.Date
+  /// UTC, e.g. 2026-11-23T06:00:00.000Z = 23 Nov 13:00 Thai
+  opensAt    DateTime            @map("opens_at") @db.DateTime(3)
+  /// UTC, e.g. 2026-11-24T03:00:00.000Z = 24 Nov 10:00 Thai
+  editLockAt DateTime            @map("edit_lock_at") @db.DateTime(3)
+  /// UTC, e.g. 2026-11-24T05:00:00.000Z = 24 Nov 12:00 Thai
+  shipAt     DateTime            @map("ship_at") @db.DateTime(3)
+  status     DeliveryRoundStatus @default(open)
+  lockedAt   DateTime?           @map("locked_at") @db.DateTime(3)
+  lockedById BigInt?             @map("locked_by") @db.UnsignedBigInt
+  note       String?             @db.VarChar(255)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?             @map("created_by") @db.UnsignedBigInt
+  updatedAt  DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy  BigInt?             @map("updated_by") @db.UnsignedBigInt
+
+  lockedBy  User?      @relation("DeliveryRoundLockedBy", fields: [lockedById], references: [id], onDelete: Restrict)
+  orders    Order[]
+  printLogs PrintLog[]
+
+  @@index([lockedById])
+  @@map("delivery_rounds")
+}
+
+/// ออเดอร์ทุกช่องทาง (ห้ามลบ ใช้สถานะยกเลิก)
+model Order {
+  id                     BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  orderNo                String             @unique @map("order_no") @db.VarChar(20)
+  channelCode            String             @map("channel_code") @db.VarChar(20)
+  platformShopId         BigInt?            @map("platform_shop_id") @db.UnsignedBigInt
+  platformOrderNo        String?            @map("platform_order_no") @db.VarChar(50)
+  source                 OrderSource
+  importBatchId          BigInt?            @map("import_batch_id") @db.UnsignedBigInt
+  customerId             BigInt             @map("customer_id") @db.UnsignedBigInt
+  contactName            String             @map("contact_name") @db.VarChar(200)
+  contactPhone           String?            @map("contact_phone") @db.VarChar(20)
+  orderedAt              DateTime           @map("ordered_at") @db.DateTime(3)
+  /// NULL = advance order without a round yet
+  deliveryRoundId        BigInt?            @map("delivery_round_id") @db.UnsignedBigInt
+  isAdvance              Boolean            @default(false) @map("is_advance")
+  addedAfterCutoff       Boolean            @default(false) @map("added_after_cutoff")
+  status                 OrderStatus        @default(received)
+  hasIssue               Boolean            @default(false) @map("has_issue")
+  issueNote              String?            @map("issue_note") @db.VarChar(500)
+  billing                Billing
+  vatMode                VatMode            @default(none) @map("vat_mode")
+  taxProfileId           BigInt?            @map("tax_profile_id") @db.UnsignedBigInt
+  subtotal               Decimal            @default(0.00) @db.Decimal(12, 2)
+  discount               Decimal            @default(0.00) @db.Decimal(12, 2)
+  shippingFee            Decimal            @default(0.00) @map("shipping_fee") @db.Decimal(12, 2)
+  shippingRuleId         BigInt?            @map("shipping_rule_id") @db.UnsignedBigInt
+  vatAmount              Decimal            @default(0.00) @map("vat_amount") @db.Decimal(12, 2)
+  total                  Decimal            @default(0.00) @db.Decimal(12, 2)
+  paymentStatus          PaymentStatus      @default(unpaid) @map("payment_status")
+  paidAmount             Decimal            @default(0.00) @map("paid_amount") @db.Decimal(12, 2)
+  /// Revenue is recognized on payment (Q16)
+  paidAt                 DateTime?          @map("paid_at") @db.DateTime(3)
+  carrierId              BigInt?            @map("carrier_id") @db.UnsignedBigInt
+  isPickup               Boolean            @default(false) @map("is_pickup")
+  recipientName          String             @map("recipient_name") @db.VarChar(200)
+  recipientPhone         String             @map("recipient_phone") @db.VarChar(20)
+  shipAddress            String?            @map("ship_address") @db.Text
+  provinceId             BigInt?            @map("province_id") @db.UnsignedBigInt
+  postcode               String?            @db.VarChar(5)
+  shippingNote           String?            @map("shipping_note") @db.Text
+  internalNote           String?            @map("internal_note") @db.Text
+  confirmedAt            DateTime?          @map("confirmed_at") @db.DateTime(3)
+  confirmedById          BigInt?            @map("confirmed_by") @db.UnsignedBigInt
+  productionAcceptedAt   DateTime?          @map("production_accepted_at") @db.DateTime(3)
+  productionAcceptedById BigInt?            @map("production_accepted_by") @db.UnsignedBigInt
+  deliveredAt            DateTime?          @map("delivered_at") @db.DateTime(3)
+  cancelledAt            DateTime?          @map("cancelled_at") @db.DateTime(3)
+  cancelledById          BigInt?            @map("cancelled_by") @db.UnsignedBigInt
+  cancelReasonId         BigInt?            @map("cancel_reason_id") @db.UnsignedBigInt
+  cancelNote             String?            @map("cancel_note") @db.VarChar(500)
+  platformSyncStatus     PlatformSyncStatus @default(none) @map("platform_sync_status")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy              BigInt?            @map("created_by") @db.UnsignedBigInt
+  updatedAt              DateTime           @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy              BigInt?            @map("updated_by") @db.UnsignedBigInt
+
+  channel              Channel             @relation(fields: [channelCode], references: [code])
+  platformShop         PlatformShop?       @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  importBatch          ImportBatch?        @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  customer             Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  deliveryRound        DeliveryRound?      @relation(fields: [deliveryRoundId], references: [id], onDelete: Restrict)
+  taxProfile           CustomerTaxProfile? @relation(fields: [taxProfileId], references: [id], onDelete: Restrict)
+  shippingRule         ShippingRule?       @relation(fields: [shippingRuleId], references: [id], onDelete: Restrict)
+  carrier              Carrier?            @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  province             Province?           @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  confirmedBy          User?               @relation("OrderConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+  productionAcceptedBy User?               @relation("OrderProductionAcceptedBy", fields: [productionAcceptedById], references: [id], onDelete: Restrict)
+  cancelledBy          User?               @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelReason         CancelReason?       @relation(fields: [cancelReasonId], references: [id], onDelete: Restrict)
+  items                OrderItem[]
+  events               OrderEvent[]
+  shipments            Shipment[]
+  printLogs            PrintLog[]
+  paymentAllocations   PaymentAllocation[]
+  documents            Document[]
+  rawRecords           PlatformRawRecord[]
+  payoutLines          PayoutLine[]
+
+  /// Prevents importing the same platform order twice (SRS 19)
+  @@unique([platformShopId, platformOrderNo])
+  @@index([channelCode])
+  @@index([customerId])
+  @@index([orderedAt])
+  @@index([deliveryRoundId, status])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([carrierId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+/// รายการสินค้าในออเดอร์ (คัดลอกชื่อและราคา ณ วันที่สั่ง)
+model OrderItem {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId        BigInt   @map("order_id") @db.UnsignedBigInt
+  lineNo         Int      @default(1) @map("line_no")
+  /// NULL = platform SKU not mapped yet
+  productId      BigInt?  @map("product_id") @db.UnsignedBigInt
+  productName    String   @map("product_name") @db.VarChar(150)
+  unit           String   @db.VarChar(20)
+  qty            Int
+  unitPrice      Decimal  @map("unit_price") @db.Decimal(12, 2)
+  priceRuleId    BigInt?  @map("price_rule_id") @db.UnsignedBigInt
+  discount       Decimal  @default(0.00) @db.Decimal(12, 2)
+  lineTotal      Decimal  @map("line_total") @db.Decimal(12, 2)
+  platformItemId String?  @map("platform_item_id") @db.VarChar(50)
+  platformSku    String?  @map("platform_sku") @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product?       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  priceRule     PriceRule?     @relation(fields: [priceRuleId], references: [id], onDelete: Restrict)
+  shipmentItems ShipmentItem[]
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([priceRuleId])
+  @@map("order_items")
+}
+
+/// ประวัติ / timeline ของออเดอร์ (SRS 25)
+model OrderEvent {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId    BigInt   @map("order_id") @db.UnsignedBigInt
+  eventType  String   @map("event_type") @db.VarChar(30)
+  fromStatus String?  @map("from_status") @db.VarChar(30)
+  toStatus   String?  @map("to_status") @db.VarChar(30)
+  message    String   @db.VarChar(500)
+  data       Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([eventType])
+  @@map("order_events")
+}
+
+// ───────────────────────── 5. Shipping ─────────────────────────
+
+/// 1 ออเดอร์ส่งได้หลายครั้ง / หลายที่อยู่ / หลาย tracking (Q10–12)
+model Shipment {
+  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId        BigInt         @map("order_id") @db.UnsignedBigInt
+  seq            Int            @default(1)
+  kind           ShipmentKind   @default(normal)
+  carrierId      BigInt         @map("carrier_id") @db.UnsignedBigInt
+  /// e.g. SHSC26L000011634 (Inter Express)
+  trackingNo     String?        @map("tracking_no") @db.VarChar(50)
+  trackingSource DataSource     @default(manual) @map("tracking_source")
+  recipientName  String         @map("recipient_name") @db.VarChar(200)
+  recipientPhone String         @map("recipient_phone") @db.VarChar(20)
+  address        String         @db.Text
+  provinceId     BigInt?        @map("province_id") @db.UnsignedBigInt
+  postcode       String?        @db.VarChar(5)
+  status         ShipmentStatus @default(pending)
+  shippedAt      DateTime?      @map("shipped_at") @db.DateTime(3)
+  deliveredAt    DateTime?      @map("delivered_at") @db.DateTime(3)
+  receiverName   String?        @map("receiver_name") @db.VarChar(200)
+  note           String?        @db.Text
+  createdAt      DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?        @map("updated_by") @db.UnsignedBigInt
+
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carrier   Carrier         @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  province  Province?       @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  items     ShipmentItem[]
+  events    ShipmentEvent[]
+  printLogs PrintLog[]
+
+  @@unique([carrierId, trackingNo])
+  @@index([orderId])
+  @@index([trackingNo])
+  @@index([status])
+  @@index([provinceId])
+  @@map("shipments")
+}
+
+/// สินค้าที่อยู่ในแต่ละ shipment (ใช้คำนวณว่าส่งครบหรือยัง)
+model ShipmentItem {
+  id          BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  shipmentId  BigInt @map("shipment_id") @db.UnsignedBigInt
+  orderItemId BigInt @map("order_item_id") @db.UnsignedBigInt
+  qty         Int
+
+  shipment  Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@index([shipmentId])
+  @@index([orderItemId])
+  @@map("shipment_items")
+}
+
+/// ประวัติสถานะพัสดุจาก API ขนส่งหรือคีย์เอง
+model ShipmentEvent {
+  id          BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  shipmentId  BigInt     @map("shipment_id") @db.UnsignedBigInt
+  status      String     @db.VarChar(30)
+  description String?    @db.VarChar(255)
+  location    String?    @db.VarChar(150)
+  occurredAt  DateTime   @map("occurred_at") @db.DateTime(3)
+  source      DataSource
+  raw         Json?
+  createdAt   DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy   BigInt?    @map("created_by") @db.UnsignedBigInt
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@map("shipment_events")
+}
+
+/// ประวัติการพิมพ์ใบหยิบของ / ใบปะหน้า / เอกสาร
+model PrintLog {
+  id              BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  docType         PrintDocType @map("doc_type")
+  orderId         BigInt?      @map("order_id") @db.UnsignedBigInt
+  shipmentId      BigInt?      @map("shipment_id") @db.UnsignedBigInt
+  deliveryRoundId BigInt?      @map("delivery_round_id") @db.UnsignedBigInt
+  createdAt       DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy       BigInt?      @map("created_by") @db.UnsignedBigInt
+
+  order         Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  shipment      Shipment?      @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  deliveryRound DeliveryRound? @relation(fields: [deliveryRoundId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([shipmentId])
+  @@index([deliveryRoundId])
+  @@map("print_logs")
+}
+
+// ───────────────────────── 6. Payments ─────────────────────────
+
+/// การรับเงิน 1 ครั้ง (1 การโอนจ่ายได้หลายออเดอร์)
+model Payment {
+  id            BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  method        PaymentMethod
+  bankAccountId BigInt?             @map("bank_account_id") @db.UnsignedBigInt
+  amount        Decimal             @db.Decimal(12, 2)
+  paidAt        DateTime            @map("paid_at") @db.DateTime(3)
+  payerName     String?             @map("payer_name") @db.VarChar(200)
+  reference     String?             @db.VarChar(100)
+  status        PaymentVerifyStatus @default(pending)
+  verifiedAt    DateTime?           @map("verified_at") @db.DateTime(3)
+  verifiedById  BigInt?             @map("verified_by") @db.UnsignedBigInt
+  note          String?             @db.Text
+  createdAt     DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy     BigInt?             @map("created_by") @db.UnsignedBigInt
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy     BigInt?             @map("updated_by") @db.UnsignedBigInt
+
+  bankAccount BankAccount?        @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  verifiedBy  User?               @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+  allocations PaymentAllocation[]
+  slips       PaymentSlip[]
+
+  @@index([bankAccountId])
+  @@index([paidAt])
+  @@index([status])
+  @@index([verifiedById])
+  @@map("payments")
+}
+
+/// แบ่งยอดเงินที่รับเข้าแต่ละออเดอร์ (โอนรวมหลายออเดอร์ Q15)
+model PaymentAllocation {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  paymentId BigInt   @map("payment_id") @db.UnsignedBigInt
+  orderId   BigInt   @map("order_id") @db.UnsignedBigInt
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, orderId])
+  @@index([orderId])
+  @@map("payment_allocations")
+}
+
+/// รูปสลิป (เก็บไฟล์นอก public เปิดผ่าน route ที่ตรวจสิทธิ์)
+model PaymentSlip {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  paymentId BigInt   @map("payment_id") @db.UnsignedBigInt
+  filePath  String   @map("file_path") @db.VarChar(255)
+  fileName  String   @map("file_name") @db.VarChar(255)
+  mimeType  String   @map("mime_type") @db.VarChar(50)
+  sizeBytes Int      @default(0) @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_slips")
+}
+
+// ───────────────────────── 7. Accounting documents ─────────────────────────
+
+/// ใบกำกับภาษี (เต็มรูป / อย่างย่อ), ใบเสร็จ, ใบลดหนี้
+model Document {
+  id                 BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  docNo              String         @unique @map("doc_no") @db.VarChar(30)
+  docType            DocumentType   @map("doc_type")
+  orderId            BigInt         @map("order_id") @db.UnsignedBigInt
+  /// Credit note → the tax invoice it refers to
+  refDocumentId      BigInt?        @map("ref_document_id") @db.UnsignedBigInt
+  customerId         BigInt         @map("customer_id") @db.UnsignedBigInt
+  /// No full tax invoice requested = "ผู้ซื้อไม่ประสงค์ขอรับใบกำกับภาษี"
+  buyerName          String         @map("buyer_name") @db.VarChar(255)
+  buyerTaxId         String?        @map("buyer_tax_id") @db.VarChar(13)
+  buyerBranch        String?        @map("buyer_branch") @db.VarChar(5)
+  buyerAddress       String?        @map("buyer_address") @db.Text
+  /// Thai business date
+  issueDate          DateTime       @map("issue_date") @db.Date
+  subtotal           Decimal        @default(0.00) @db.Decimal(12, 2)
+  vatRate            Decimal        @default(7.00) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount          Decimal        @default(0.00) @map("vat_amount") @db.Decimal(12, 2)
+  total              Decimal        @default(0.00) @db.Decimal(12, 2)
+  reason             String?        @db.VarChar(255)
+  status             DocumentStatus @default(issued)
+  voidedAt           DateTime?      @map("voided_at") @db.DateTime(3)
+  voidedById         BigInt?        @map("voided_by") @db.UnsignedBigInt
+  accountingExportId BigInt?        @map("accounting_export_id") @db.UnsignedBigInt
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy          BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy          BigInt?        @map("updated_by") @db.UnsignedBigInt
+
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  refDocument      Document?         @relation("DocumentRef", fields: [refDocumentId], references: [id], onDelete: Restrict)
+  referencedBy     Document[]        @relation("DocumentRef")
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  voidedBy         User?             @relation("DocumentVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+  accountingExport AccountingExport? @relation(fields: [accountingExportId], references: [id], onDelete: Restrict)
+  items            DocumentItem[]
+
+  @@index([orderId])
+  @@index([refDocumentId])
+  @@index([customerId])
+  @@index([issueDate])
+  @@index([voidedById])
+  @@index([accountingExportId])
+  @@map("documents")
+}
+
+/// บรรทัดในเอกสาร (คัดลอกจากออเดอร์ ณ วันที่ออก)
+model DocumentItem {
+  id          BigInt  @id @default(autoincrement()) @db.UnsignedBigInt
+  documentId  BigInt  @map("document_id") @db.UnsignedBigInt
+  lineNo      Int     @default(1) @map("line_no")
+  description String  @db.VarChar(255)
+  qty         Decimal @db.Decimal(12, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_items")
+}
+
+/// ชุดข้อมูลที่ส่งออกไป FlowAccount (Q21)
+model AccountingExport {
+  id         BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  target     String                 @default("flowaccount") @db.VarChar(30)
+  periodFrom DateTime               @map("period_from") @db.Date
+  periodTo   DateTime               @map("period_to") @db.Date
+  filePath   String?                @map("file_path") @db.VarChar(255)
+  rowCount   Int                    @default(0) @map("row_count")
+  status     AccountingExportStatus
+  error      String?                @db.Text
+  createdAt  DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy  BigInt?                @map("created_by") @db.UnsignedBigInt
+
+  documents Document[]
+
+  @@map("accounting_exports")
+}
+
+// ───────────────────────── 8. Platforms and imports ─────────────────────────
+
+/// ค่าเชื่อมต่อ API ของแต่ละร้าน (เข้ารหัส AES-256-GCM)
+model PlatformCredential {
+  id               BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  platformShopId   BigInt           @unique @map("platform_shop_id") @db.UnsignedBigInt
+  partnerId        String?          @map("partner_id") @db.VarChar(50)
+  partnerKeyEnc    String?          @map("partner_key_enc") @db.Text
+  accessTokenEnc   String?          @map("access_token_enc") @db.Text
+  refreshTokenEnc  String?          @map("refresh_token_enc") @db.Text
+  accessExpiresAt  DateTime?        @map("access_expires_at") @db.DateTime(3)
+  refreshExpiresAt DateTime?        @map("refresh_expires_at") @db.DateTime(3)
+  status           CredentialStatus @default(disconnected)
+  lastSyncedAt     DateTime?        @map("last_synced_at") @db.DateTime(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy        BigInt?          @map("created_by") @db.UnsignedBigInt
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy        BigInt?          @map("updated_by") @db.UnsignedBigInt
+
+  platformShop PlatformShop @relation(fields: [platformShopId], references: [id], onDelete: Cascade)
+
+  @@map("platform_credentials")
+}
+
+/// จับคู่ SKU บน platform กับสินค้าในระบบ
+model SkuMapping {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  platformShopId   BigInt   @map("platform_shop_id") @db.UnsignedBigInt
+  platformSku      String   @map("platform_sku") @db.VarChar(100)
+  platformItemId   String?  @map("platform_item_id") @db.VarChar(50)
+  platformItemName String?  @map("platform_item_name") @db.VarChar(255)
+  /// NULL = not mapped yet → notification
+  productId        BigInt?  @map("product_id") @db.UnsignedBigInt
+  /// How many product units one SKU is, e.g. Shopee "แพ็ค 10 ชิ้น" = 10 ชิ้น
+  unitsPerSku      Int      @default(1) @map("units_per_sku")
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy        BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy        BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  platformShop PlatformShop @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  product      Product?     @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([platformShopId, platformSku])
+  @@index([productId])
+  @@map("sku_mappings")
+}
+
+/// การนำเข้า 1 ครั้ง: อัปโหลดไฟล์ หรือดึงจาก API
+model ImportBatch {
+  id             BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  source         ImportSource
+  fileType       ImportFileType    @map("file_type")
+  platformShopId BigInt?           @map("platform_shop_id") @db.UnsignedBigInt
+  fileName       String?           @map("file_name") @db.VarChar(255)
+  /// SHA-256, warns when the same file is uploaded again
+  fileHash       String?           @map("file_hash") @db.Char(64)
+  totalRows      Int               @default(0) @map("total_rows")
+  createdRows    Int               @default(0) @map("created_rows")
+  updatedRows    Int               @default(0) @map("updated_rows")
+  skippedRows    Int               @default(0) @map("skipped_rows")
+  errorRows      Int               @default(0) @map("error_rows")
+  status         ImportBatchStatus @default(processing)
+  finishedAt     DateTime?         @map("finished_at") @db.DateTime(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?           @map("created_by") @db.UnsignedBigInt
+
+  platformShop PlatformShop?       @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  orders       Order[]
+  rawRecords   PlatformRawRecord[]
+  payouts      Payout[]
+  payoutLines  PayoutLine[]
+
+  @@index([platformShopId])
+  @@index([fileHash])
+  @@index([createdAt])
+  @@map("import_batches")
+}
+
+/// ข้อมูลดิบจากไฟล์ / API เก็บไว้ทุกแถว (แปลงเป็นออเดอร์ทีหลัง ตรวจย้อนได้)
+model PlatformRawRecord {
+  id            BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  importBatchId BigInt          @map("import_batch_id") @db.UnsignedBigInt
+  recordType    String          @map("record_type") @db.VarChar(30)
+  externalId    String?         @map("external_id") @db.VarChar(100)
+  rowNo         Int?            @map("row_no")
+  payload       Json
+  result        RawRecordResult @default(pending)
+  error         String?         @db.Text
+  orderId       BigInt?         @map("order_id") @db.UnsignedBigInt
+  createdAt     DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy     BigInt?         @map("created_by") @db.UnsignedBigInt
+
+  importBatch ImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  order       Order?      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([importBatchId])
+  @@index([recordType, externalId])
+  @@index([orderId])
+  @@map("platform_raw_records")
+}
+
+/// ยอดที่ platform โอนเข้าบริษัท (Shopee โอนรายอาทิตย์)
+model Payout {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  platformShopId BigInt   @map("platform_shop_id") @db.UnsignedBigInt
+  payoutRef      String?  @map("payout_ref") @db.VarChar(100)
+  payoutDate     DateTime @map("payout_date") @db.Date
+  gross          Decimal  @default(0.00) @db.Decimal(12, 2)
+  fees           Decimal  @default(0.00) @db.Decimal(12, 2)
+  adjustments    Decimal  @default(0.00) @db.Decimal(12, 2)
+  net            Decimal  @default(0.00) @db.Decimal(12, 2)
+  bankAccountId  BigInt?  @map("bank_account_id") @db.UnsignedBigInt
+  importBatchId  BigInt?  @map("import_batch_id") @db.UnsignedBigInt
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?  @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?  @map("updated_by") @db.UnsignedBigInt
+
+  platformShop PlatformShop @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  bankAccount  BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  importBatch  ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  lines        PayoutLine[]
+
+  @@index([platformShopId])
+  @@index([payoutDate])
+  @@index([bankAccountId])
+  @@index([importBatchId])
+  @@map("payouts")
+}
+
+/// รายการย่อยต่อออเดอร์: ค่าสินค้า, ค่าคอม, ค่าธรรมเนียม, VAT, WHT (ใช้กระทบยอด)
+model PayoutLine {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  /// NULL = not paid out yet
+  payoutId        BigInt?   @map("payout_id") @db.UnsignedBigInt
+  platformShopId  BigInt    @map("platform_shop_id") @db.UnsignedBigInt
+  /// NULL = could not match an order
+  orderId         BigInt?   @map("order_id") @db.UnsignedBigInt
+  platformOrderNo String    @map("platform_order_no") @db.VarChar(50)
+  /// sale, commission, payment_fee, shipping, adjustment, vat, wht
+  lineType        String    @map("line_type") @db.VarChar(30)
+  /// Negative = deduction
+  amount          Decimal   @db.Decimal(12, 2)
+  occurredAt      DateTime? @map("occurred_at") @db.DateTime(3)
+  isReconciled    Boolean   @default(false) @map("is_reconciled")
+  importBatchId   BigInt?   @map("import_batch_id") @db.UnsignedBigInt
+  createdAt       DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy       BigInt?   @map("created_by") @db.UnsignedBigInt
+
+  payout       Payout?      @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  platformShop PlatformShop @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  importBatch  ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+
+  @@index([payoutId])
+  @@index([platformShopId])
+  @@index([orderId])
+  @@index([platformOrderNo])
+  @@index([importBatchId])
+  @@map("payout_lines")
+}
+
+// ───────────────────────── 9. Background jobs (hPanel cron → POST /api/jobs/run) ─────────────────────────
+
+/// คิวงาน: ดึงออเดอร์, ส่งสถานะกลับ, ประมวลผล webhook, ดึงสถานะพัสดุ
+model Job {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  type           String    @db.VarChar(50)
+  payload        Json?
+  status         JobStatus @default(pending)
+  priority       Int       @default(0)
+  /// Max 3, backoff +10 minutes each time
+  autoAttempts   Int       @default(0) @map("auto_attempts") @db.TinyInt
+  /// Max 2 manual Re-sync clicks
+  manualAttempts Int       @default(0) @map("manual_attempts") @db.TinyInt
+  nextRunAt      DateTime  @map("next_run_at") @db.DateTime(3)
+  lockedAt       DateTime? @map("locked_at") @db.DateTime(3)
+  lastError      String?   @map("last_error") @db.Text
+  finishedAt     DateTime? @map("finished_at") @db.DateTime(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  updatedBy      BigInt?   @map("updated_by") @db.UnsignedBigInt
+
+  webhookEvents WebhookEvent[]
+  syncLogs      SyncLog[]
+
+  @@index([type])
+  @@index([status, nextRunAt])
+  @@map("jobs")
+}
+
+/// webhook ที่ platform ส่งมา (บันทึกแล้วตอบ 200 ทันที ให้ cron ประมวลผล)
+model WebhookEvent {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  source         String    @db.VarChar(30)
+  eventType      String?   @map("event_type") @db.VarChar(50)
+  externalId     String?   @map("external_id") @db.VarChar(100)
+  signatureValid Boolean   @default(false) @map("signature_valid")
+  payload        Json
+  jobId          BigInt?   @map("job_id") @db.UnsignedBigInt
+  processedAt    DateTime? @map("processed_at") @db.DateTime(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?   @map("created_by") @db.UnsignedBigInt
+
+  job Job? @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([externalId])
+  @@index([jobId])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+/// log การเชื่อมต่อ platform / ขนส่ง (หน้า platform-log)
+model SyncLog {
+  id             BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  platformShopId BigInt?  @map("platform_shop_id") @db.UnsignedBigInt
+  carrierId      BigInt?  @map("carrier_id") @db.UnsignedBigInt
+  jobId          BigInt?  @map("job_id") @db.UnsignedBigInt
+  action         String   @db.VarChar(50)
+  ok             Boolean  @default(false)
+  recordCount    Int      @default(0) @map("record_count")
+  durationMs     Int      @default(0) @map("duration_ms")
+  message        String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy      BigInt?  @map("created_by") @db.UnsignedBigInt
+
+  platformShop PlatformShop? @relation(fields: [platformShopId], references: [id], onDelete: Restrict)
+  carrier      Carrier?      @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  job          Job?          @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([platformShopId])
+  @@index([carrierId])
+  @@index([jobId])
+  @@index([createdAt])
+  @@map("sync_logs")
 }
